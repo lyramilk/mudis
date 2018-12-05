@@ -1,0 +1,8 @@
+﻿#ifndef _redis_proxy_config_h_
+#define _redis_proxy_config_h_
+
+#define MUDIS_VERSION "mudis ${version} with libmilk ${LIBMILK_VERSION}"
+
+${CMAKE_CONFIG_MACROS}
+
+#endif

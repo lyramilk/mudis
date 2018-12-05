@@ -1,0 +1,43 @@
+{
+	/*
+		服务的自身设置，包括
+		thread 线程数
+		host 绑定的ip地址
+		port 端口
+	*/
+	"server":{
+		"thread":8,
+		"port":6379,
+	},
+
+	/*
+		代理的设置，每一个对象是一个代理组，对象名作为登录的密码。
+		对象中的strategy属性代表分配策略，如speedy简单转发。
+		upstream是redis信息的数组。
+	*/
+	"proxy":{
+		"admin":{
+			"strategy":"admin",
+		},
+		"test":{
+			"strategy":"speedy",
+			"upstream":[
+				{
+					"host":"192.168.220.93",
+					"port":6000,
+				},
+				{
+					"host":"192.168.220.93",
+					"port":6001,
+					"password":"6001",
+				},
+				{
+					"host":"192.168.220.93",
+					"port":6002,
+					"password":"6002",
+				},
+			],
+		},
+	},
+}
+
