@@ -3,6 +3,7 @@ server:
   port: 6379	# port 端口
   host: 0.0.0.0	# 绑定ip地址
   pidfile: /var/run/mudisd.pid
+  logfile: /var/log/mudisd.log
 
 proxy:
   admin: 

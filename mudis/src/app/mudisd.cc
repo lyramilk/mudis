@@ -68,6 +68,7 @@ class teapoy_log_logfile:public teapoy_log_base
 	{
 		this->logfilepath = logfilepath;
 		fp = fopen(logfilepath.c_str(),"a");
+
 		if(!fp) fp = stdout;
 		pid_t pid = getpid();
 		lyramilk::data::stringstream ss;
@@ -91,7 +92,7 @@ class teapoy_log_logfile:public teapoy_log_base
 		return fp != nullptr;
 	}
 
-	virtual void log(time_t ti,lyramilk::log::type ty,lyramilk::data::string usr,lyramilk::data::string app,lyramilk::data::string module,lyramilk::data::string str) const
+	virtual void log(time_t ti,lyramilk::log::type ty,const lyramilk::data::string& usr,const lyramilk::data::string& app,const lyramilk::data::string& module,const lyramilk::data::string& str) const
 	{
 		tm t;
 		localtime_r(&ti,&t);
@@ -298,11 +299,10 @@ int main(int argc,char* argv[])
 		log(lyramilk::log::trace) << D("即将以守护进程方式方式启动。",configure_file.c_str()) << std::endl;
 		::daemon(0,0);
 
-		logswitch["debug"] = false;
+		logswitch["debug"] = true;
 		logswitch["trace"] = true;
 		logswitch["warning"] = true;
 		logswitch["error"] = true;
-
 		if(!logfile.empty()){
 			teapoy_log_base* logbase = new teapoy_log_logfile(logfile);
 			if(logbase && logbase->ok()){
@@ -342,13 +342,22 @@ int main(int argc,char* argv[])
 
 	/* 开始服务 */
 	redis_proxy_server* ins = new redis_proxy_server;
+	bool isok = false;
 	if(host.empty()){
-		if(!ins->open(port)){
-			exit(1);
+		for(int i=0;i<3;++i){
+			if(ins->open(port)){
+				isok = true;
+				break;
+			}
+			sleep(1);
 		}
 	}else{
-		if(!ins->open(host,port)){
-			exit(1);
+		for(int i=0;i<3;++i){
+			if(ins->open(host,port)){
+				isok = true;
+				break;
+			}
+			sleep(1);
 		}
 	}
 
