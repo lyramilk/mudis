@@ -55,7 +55,7 @@ namespace lyramilk{ namespace mudis
 	  	virtual ~redis_proxy_group();
 
 		virtual bool load_config(const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg) = 0;
-		virtual redis_proxy_strategy* create() = 0;
+		virtual redis_proxy_strategy* create(bool is_ssdb) = 0;
 		virtual void destory(redis_proxy_strategy* p) = 0;
 	};
 
@@ -66,6 +66,10 @@ namespace lyramilk{ namespace mudis
 		std::map<lyramilk::data::string,redis_upstream_server> rlist;	//	redishash->redisinfo
 		virtual int svc();
 	  public:
+		bool leave;
+
+		redis_strategy_master();
+	  	virtual ~redis_strategy_master();
 		static redis_strategy_master* instance();
 
 	  	static lyramilk::data::string hash(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);

@@ -27,10 +27,14 @@ namespace lyramilk{ namespace mudis
 			s_bulk_0	= 0x5000,
 			s_bulk_cr,
 			s_bulk_data,
-			s_bulk_data_0,
 			s_bulk_data_cr,
 			s_array_0	= 0x6000,
 			s_array_cr,
+			s_ssdb_s0	= 0x7000,
+			s_ssdb_str_0,
+			s_ssdb_str_cr,
+			s_ssdb_str_data,
+			s_ssdb_str_data_cr,
 		}s;
 		lyramilk::data::int64 array_item_count;
 		lyramilk::data::int64 bulk_bytes_count;
@@ -47,8 +51,10 @@ namespace lyramilk{ namespace mudis
 
 
 		static bool parse(lyramilk::data::istream& is,lyramilk::data::var& v,bool* onerr);
-		static lyramilk::data::var exec(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr);
+		static lyramilk::data::var exec_redis(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr);
+		static lyramilk::data::strings exec_ssdb(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr);
 	  protected:
+		bool is_ssdb;
 		result_status parsing(char c,void* userdata);
 		result_status parsing(const char* cache, int size,int* bytesused,void* userdata);
 		virtual result_status notify_cmd(const lyramilk::data::var::array& cmd, void* userdata) = 0;

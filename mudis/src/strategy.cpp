@@ -60,6 +60,16 @@ namespace lyramilk{ namespace mudis
 	}
 
 	// redis_strategy_master
+
+	redis_strategy_master::redis_strategy_master()
+	{
+		leave = false;
+	}
+
+	redis_strategy_master::~redis_strategy_master()
+	{
+	}
+
 	redis_strategy_master* redis_strategy_master::instance()
 	{
 		static redis_strategy_master _mm;
@@ -155,7 +165,7 @@ namespace lyramilk{ namespace mudis
 				cmd.push_back("ping");
 				bool err = false;
 
-				lyramilk::data::var r = redis_session::exec(c,cmd,&err);
+				lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
 
 				if(r == "PONG"){
 					return true;
@@ -166,7 +176,7 @@ namespace lyramilk{ namespace mudis
 				cmd.push_back(password);
 				bool err = false;
 
-				lyramilk::data::var r = redis_session::exec(c,cmd,&err);
+				lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
 
 				if(r == "OK"){
 					return true;
@@ -180,7 +190,7 @@ namespace lyramilk{ namespace mudis
 
 	int redis_strategy_master::svc()
 	{
-		while(true){
+		while(running){
 			std::map<lyramilk::data::string,redis_upstream_server>::iterator it =  rlist.begin();
 			for(;it!=rlist.end();++it){
 				it->second.online = check_redis(it->second.host,it->second.port,it->second.password);

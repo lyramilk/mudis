@@ -19,12 +19,14 @@ namespace lyramilk{ namespace mudis { namespace strategy
 	{
 		redis_upstream_server* rinfo;
 		lyramilk::netio::aioproxysession_speedy* endpoint;
+		bool is_ssdb;
 	  public:
-		speedy(redis_upstream_server* ri,lyramilk::netio::aioproxysession_speedy* endpoint)
+		speedy(redis_upstream_server* ri,lyramilk::netio::aioproxysession_speedy* endpoint,bool is_ssdb)
 		{
 			rinfo = ri;
 			rinfo->add_ref();
 			this->endpoint = endpoint;
+			this->is_ssdb = is_ssdb;
 		}
 
 		virtual ~speedy()
@@ -35,7 +37,11 @@ namespace lyramilk{ namespace mudis { namespace strategy
 		virtual bool onauth(lyramilk::data::ostream& os,redis_proxy* proxy)
 		{
 			if(proxy->combine(endpoint)){
-				os << "+OK\r\n";
+				if(is_ssdb){
+					os << "2\nok\n1\n1\n\n";
+				}else{
+					os << "+OK\r\n";
+				}
 				return true;
 			}
 			return false;
@@ -87,7 +93,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			return true;
 		}
 
-		virtual redis_proxy_strategy* create()
+		virtual redis_proxy_strategy* create(bool is_ssdb)
 		{
 			for(int i=0;i<10;++i){
 				int idx = rand() % upstreams.size();
@@ -102,28 +108,50 @@ namespace lyramilk{ namespace mudis { namespace strategy
 							cmd.push_back("ping");
 							bool err = false;
 
-							lyramilk::netio::client c;
-							c.fd(endpoint->fd());
-							lyramilk::data::var r = redis_session::exec(c,cmd,&err);
-							c.fd(-1);
+							if(is_ssdb){
+								lyramilk::netio::client c;
+								c.fd(endpoint->fd());
+								lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
+								c.fd(-1);
 
-							if(r == "PONG"){
-								return new speedy(upstreams[idx],endpoint);
+								if(r.size() > 0 && r[0] == "ok"){
+									return new speedy(upstreams[idx],endpoint,is_ssdb);
+								}
+							}else{
+								lyramilk::netio::client c;
+								c.fd(endpoint->fd());
+								lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
+								c.fd(-1);
+								if(r == "PONG"){
+									return new speedy(upstreams[idx],endpoint,is_ssdb);
+								}
 							}
+
 						}else{
 							lyramilk::data::array cmd;
 							cmd.push_back("auth");
 							cmd.push_back(rinfo->password);
 							bool err = false;
 
-							lyramilk::netio::client c;
-							c.fd(endpoint->fd());
-							lyramilk::data::var r = redis_session::exec(c,cmd,&err);
-							c.fd(-1);
-
-							if(r == "OK"){
-								return new speedy(upstreams[idx],endpoint);
+							if(is_ssdb){
+								lyramilk::netio::client c;
+								c.fd(endpoint->fd());
+								lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
+								c.fd(-1);
+								if(r.size() > 0 && r[0] == "ok"){
+									return new speedy(upstreams[idx],endpoint,is_ssdb);
+								}
+							}else{
+								lyramilk::netio::client c;
+								c.fd(endpoint->fd());
+								lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
+								c.fd(-1);
+								if(r == "OK"){
+									return new speedy(upstreams[idx],endpoint,is_ssdb);
+								}
 							}
+
+
 						}
 					}
 					//尝试链接失败
@@ -131,6 +159,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 					upstreams[idx]->online = false;
 				}
 			}
+			/*
 			for(std::size_t idx=0;idx<upstreams.size();++idx){
 				if(upstreams[idx]->online){
 					lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
@@ -145,7 +174,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 							lyramilk::netio::client c;
 							c.fd(endpoint->fd());
-							lyramilk::data::var r = redis_session::exec(c,cmd,&err);
+							lyramilk::data::var r = is_ssdb?redis_session::exec_ssdb(c,cmd,&err):redis_session::exec_redis(c,cmd,&err);
 							c.fd(-1);
 
 							if(r == "PONG"){
@@ -159,7 +188,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 							lyramilk::netio::client c;
 							c.fd(endpoint->fd());
-							lyramilk::data::var r = redis_session::exec(c,cmd,&err);
+							lyramilk::data::var r = is_ssdb?redis_session::exec_ssdb(c,cmd,&err):redis_session::exec_redis(c,cmd,&err);
 							c.fd(-1);
 
 							if(r == "OK"){
@@ -172,7 +201,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 					endpoint->dtr(endpoint);
 					upstreams[idx]->online = false;
 				}
-			}
+			}*/
 			return nullptr;
 		}
 

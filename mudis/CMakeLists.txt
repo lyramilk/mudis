@@ -1,6 +1,6 @@
 ﻿#定义工程名及版本
 project(mudis)
-set(version 1.0.1)
+set(version 1.0.2)
 set(soversion 1.0)
 
 

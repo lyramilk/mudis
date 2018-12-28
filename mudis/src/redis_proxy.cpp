@@ -25,7 +25,11 @@ namespace lyramilk{ namespace mudis
 			else if(c == ':') s = s_num_0;
 			else if(c == '$') s = s_bulk_0;
 			else if(c == '*') s = s_array_0;
-			else{
+			else if(c == '4'){
+				s = s_ssdb_str_0;
+				is_ssdb = true;
+				tmpstr.push_back(c);
+			}else{
 				s = s_str_0;
 				tmpstr.push_back(c);
 			}
@@ -39,38 +43,51 @@ namespace lyramilk{ namespace mudis
 			else tmpstr.push_back(c);
 			break;
 		case s_str_cr:
+			if(c =='\n'){
+				data.push_back(tmpstr);
+				tmpstr.clear();
+				if(array_item_count > 0){
+					--array_item_count;
+				}
+				s = s_0;
+			}else return rs_parse_error;
+			break;
 		case s_err_cr:
+			if(c =='\n'){
+				data.push_back(tmpstr);
+				tmpstr.clear();
+				if(array_item_count > 0){
+					--array_item_count;
+				}
+				s = s_0;
+			}else return rs_parse_error;
+			break;
 		case s_num_cr:
+			if(c =='\n'){
+				char* p;
+				lyramilk::data::int64 i = strtoll(tmpstr.c_str(),&p,10);
+				data.push_back(i);
+				tmpstr.clear();
+				if(array_item_count > 0){
+					--array_item_count;
+				}
+				s = s_0;
+			}else return rs_parse_error;
+			break;
 		case s_bulk_cr:
+			if(c =='\n'){
+				char* p;
+				bulk_bytes_count = strtoll(tmpstr.c_str(),&p,10);
+				tmpstr.clear();
+				s = s_bulk_data;
+			}else return rs_parse_error;
+			break;
 		case s_array_cr:
 			if(c =='\n'){
-				if(s == s_str_cr){
-					data.push_back(tmpstr);
-					tmpstr.clear();
-					if(array_item_count > 0){
-						--array_item_count;
-					}
-					s = s_0;
-				}else if(s == s_num_cr){
-					char* p;
-					lyramilk::data::int64 i = strtoll(tmpstr.c_str(),&p,10);
-					data.push_back(i);
-					tmpstr.clear();
-					if(array_item_count > 0){
-						--array_item_count;
-					}
-					s = s_0;
-				}else if(s == s_array_cr){
-					char* p;
-					array_item_count = strtoll(tmpstr.c_str(),&p,10);
-					tmpstr.clear();
-					s = s_0;
-				}else if(s == s_bulk_cr){
-					char* p;
-					bulk_bytes_count = strtoll(tmpstr.c_str(),&p,10);
-					tmpstr.clear();
-					s = s_bulk_data;
-				}
+				char* p;
+				array_item_count = strtoll(tmpstr.c_str(),&p,10);
+				tmpstr.clear();
+				s = s_0;
 			}else return rs_parse_error;
 			break;
 		case s_bulk_data:
@@ -92,7 +109,57 @@ namespace lyramilk{ namespace mudis
 				s = s_0;
 			}else return rs_parse_error;
 			break;
+		case s_ssdb_s0:
+			if(c =='\n'){
+				result_status r = notify_cmd(data,userdata);
+				data.clear();
+				return r;
+			}
+			s = s_ssdb_str_0;
+		case s_ssdb_str_0:
+			if(c =='\r'){
+				s = s_ssdb_str_cr;
+				break;
+			}else if(c == '\n'){
+				//流转到下一状态
+			}else{
+				tmpstr.push_back(c);
+				break;
+			}
+		case s_ssdb_str_cr:
+			if(c =='\n'){
+				char* p;
+				bulk_bytes_count = strtoll(tmpstr.c_str(),&p,10);
+				tmpstr.clear();
+				s = s_ssdb_str_data;
+			}else return rs_parse_error;
+			break;
+		case s_ssdb_str_data:
+			if(bulk_bytes_count == 0){
+				if(c == '\r'){
+					s = s_ssdb_str_data_cr;
+					break;
+				}else if(c == '\n'){
+					//流转到下一状态
+				}else return rs_parse_error;
+			}else{
+				--bulk_bytes_count;
+				tmpstr.push_back(c);
+				break;
+			}
+		case s_ssdb_str_data_cr:
+			if(c == '\n'){
+				data.push_back(tmpstr);
+				tmpstr.clear();
+				s = s_ssdb_s0;
+			}else return rs_parse_error;
+			break;
 		default:
+			if(c >= '0' && c <= '9'){
+				s = s_ssdb_str_0;
+				tmpstr.push_back(c);
+				break;
+			}
 			return rs_parse_error;
 		}
 		if(s == s_0 && array_item_count == 0){
@@ -214,7 +281,56 @@ namespace lyramilk{ namespace mudis
 		return false;
 	}
 
-	lyramilk::data::var redis_session::exec(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr)
+	bool inline parse_ssdb(std::istream& is,lyramilk::data::strings& ret)
+	{
+		lyramilk::data::string str;
+		str.reserve(512);
+		char c = 0;
+		while(is.good()){
+			while(is.good()){
+				c = is.get();
+label_bodys:
+				if(c >= '0' && c <= '9'){
+					str.push_back(c);
+				}
+				if((c == '\r' && '\n' == is.get()) || c == '\n'){
+					break;
+				}
+			}
+			char* p;
+			lyramilk::data::uint64 sz = strtoull(str.c_str(),&p,10);
+			if(sz>0 || (str.size() > 0 && str[0] == '0')){
+				str.clear();
+				while(sz>0){
+					str.push_back(is.get());
+					--sz;
+				}
+				ret.push_back(str);
+				c = is.get();
+				if((c == '\r' && '\n' == is.get()) || c == '\n'){
+					c = is.get();
+					if(c >= '0' && c <= '9'){
+						str.clear();
+						goto label_bodys;
+					}
+					if((c == '\r' && '\n' == is.get()) || c == '\n'){
+						return true;
+					}
+					//log(lyramilk::log::error,"parse") << D("ssdb 错误：响应格式错误%d",1) << std::endl;
+					return false;
+				}
+				//log(lyramilk::log::error,"parse") << D("ssdb 错误：响应格式错误%d",2) << std::endl;
+				return false;
+			}
+			//log(lyramilk::log::error,"parse") << D("ssdb 错误：响应格式错误str=") << str << std::endl;
+			return false;
+		}
+		//log(lyramilk::log::error,"parse") << D("ssdb 错误：响应格式错误%d",4) << std::endl;
+		//throw lyramilk::exception(D("ssdb 错误：响应格式错误%d",(unsigned int)c));
+		return false;
+	}
+
+	lyramilk::data::var redis_session::exec_redis(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr)
 	{
 		lyramilk::data::array::const_iterator it = cmd.begin();
 
@@ -249,6 +365,40 @@ namespace lyramilk{ namespace mudis
 		return lyramilk::data::var::nil;
 	}
 
+	lyramilk::data::strings redis_session::exec_ssdb(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr)
+	{
+		lyramilk::data::array::const_iterator it = cmd.begin();
+
+		{
+			lyramilk::netio::socket_ostream ss(&c);
+			for(;it!=cmd.end();++it){
+				lyramilk::data::string str = it->str();
+				ss << str.size() << "\n";
+				ss << str << "\n";
+			}
+			ss << "\n";
+			ss.flush();
+		}
+
+		lyramilk::data::strings ret;
+
+		lyramilk::data::stringstream iss;
+		while(c.check_read(20)){
+			char buff[4096];
+			int r = c.read(buff,4096);
+			if(r > 0){
+				iss.write(buff,r);
+			}else{
+				break;
+			}
+		}
+
+		bool suc = parse_ssdb(iss,ret);
+
+		if(suc) return ret;
+		return lyramilk::data::strings();
+	}
+
 
 	// redis_proxy
 
@@ -280,15 +430,29 @@ namespace lyramilk{ namespace mudis
 
 	redis_proxy::result_status redis_proxy::notify_cmd(const lyramilk::data::var::array& cmd, void* userdata)
 	{
+		if(cmd.size() < 1){
+			return redis_proxy::rs_error;
+		}
+
 		std::ostream& os = *(std::ostream*)userdata;
 		lyramilk::data::string scmd = lyramilk::data::lower_case(cmd[0].str());
 
 		if(scmd == "auth"){
+			if(cmd.size() != 2){
+				if(is_ssdb){
+					lyramilk::data::string err = "client_error";
+					lyramilk::data::string msg = "wrong number of arguments";
+					os << err.size() << "\n" << err << "\n" << msg.size() << "\n" << msg << "\n\n";
+				}else{
+					os << "-ERR wrong number of arguments for '" << cmd[0].str() << "' command\r\n";
+				}
+				os.flush();
+				return redis_proxy::rs_ok;
+			}
 			lyramilk::data::string password = cmd[1].str();
-
 			group = redis_strategy_master::instance()->get_by_groupname(password);
 			if(group){
-				strategy = group->create();
+				strategy = group->create(is_ssdb);
 				if(strategy){
 					if(strategy->onauth(os,this)){
 						return redis_proxy::rs_ok;
@@ -296,10 +460,25 @@ namespace lyramilk{ namespace mudis
 					return redis_proxy::rs_error;
 				}
 			}
-			os << "-ERR invalid password\r\n";
+
+
+			if(is_ssdb){
+				lyramilk::data::string err = "error";
+				lyramilk::data::string msg = "invalid password";
+				os << err.size() << "\n" << err << "\n" << msg.size() << "\n" << msg << "\n\n";
+			}else{
+				os << "-ERR invalid password\r\n";
+			}
 			return redis_proxy::rs_ok;
+		}else{
+			if(is_ssdb){
+				lyramilk::data::string err = "noauth";
+				lyramilk::data::string msg = "authentication required.";
+				os << err.size() << "\n" << err << "\n" << msg.size() << "\n" << msg << "\n\n";
+			}else{
+				os << "-NOAUTH authentication required.\r\n";
+			}
 		}
-		os << "-NOAUTH authentication required.\r\n";
 		return redis_proxy::rs_ok;
 	}
 
