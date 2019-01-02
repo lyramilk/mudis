@@ -317,10 +317,6 @@ int main(int argc,char* argv[])
 		log(lyramilk::log::debug,__FUNCTION__) << D("控制台模式，自动忽略日志文件。") << std::endl;
 	}
 
-	
-
-
-
 	lyramilk::proc::pidfile pf(pidfile);
 	if(!pidfile.empty()){
 		pidfile = vconf.path("/server/pidfile").conv(emptystr);
@@ -377,10 +373,13 @@ int main(int argc,char* argv[])
 			close(fd);
 			if(strstr(buff,"mudis:reload")){
 				lyramilk::mudis::redis_strategy_master::instance()->leave = true;
+				pf.detach();
+				log(lyramilk::log::error,__FUNCTION__) << D("重载中，进程即将退出。") << std::endl;
 			}
 		}else{
 			sleep(1);
 		}
 	}
+	log(lyramilk::log::error,__FUNCTION__) << D("进程退出") << std::endl;
 	return 0;
 }

@@ -11,6 +11,7 @@ namespace lyramilk{ namespace proc
 		lyramilk::data::string pf;
 	  public:
 		pidfile(const lyramilk::data::string& pf);
+	  	void detach();
 	  	virtual ~pidfile();
 	};
 }}

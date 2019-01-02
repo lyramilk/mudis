@@ -1,6 +1,6 @@
 ﻿#定义工程名及版本
 project(mudis)
-set(version 1.0.3)
+set(version 1.0.4)
 set(soversion 1.0)
 
 
@@ -138,9 +138,10 @@ foreach(var ${src_app})
 endforeach()
 
 #定义安装目标
-install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pkg/${PROJECT_NAME}.pc DESTINATION ${install_dir})
-install(FILES ${src_hs} DESTINATION ${install_dir})
-install(TARGETS ${PROJECT_NAME} DESTINATION ${install_dir})
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pkg/mudisd.sh DESTINATION ${install_dir})
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/testsuite/mudis.yaml DESTINATION ${install_dir})
+#install(FILES ${src_hs} DESTINATION ${install_dir})
+#install(TARGETS ${PROJECT_NAME} DESTINATION ${install_dir})
 install(TARGETS mudisd DESTINATION ${install_dir})
 
 #单元测试，是否开启内存泄露测试

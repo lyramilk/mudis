@@ -12,9 +12,16 @@ namespace lyramilk{ namespace proc
 		}
 	}
 
+	void pidfile::detach()
+	{
+		this->pf.clear();
+	}
+
 	pidfile::~pidfile()
 	{
-		unlink(this->pf.c_str());
+		if(!this->pf.empty()){
+			unlink(this->pf.c_str());
+		}
 	}
 
 

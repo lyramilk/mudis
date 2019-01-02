@@ -10,6 +10,7 @@ namespace lyramilk{ namespace mudis
 		array_item_count = 0;
 		bulk_bytes_count = 0;
 		s = s_0;
+		is_ssdb = false;
 	}
 
 	redis_session::~redis_session()

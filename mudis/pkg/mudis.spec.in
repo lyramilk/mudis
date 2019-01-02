@@ -19,20 +19,24 @@ Prefix:		%{_sysconfdir}
 %build
 	mkdir -p %{?_builddir}/%{?name}
 	cd %{?_builddir}/%{?name}
-	cmake3 -D install_dir=%{?_builddir}/%{?name}/output -D release=1 share_type=SHARED %{CMakeListPath}
+	cmake3 -D install_dir=%{?_builddir}/%{?name}/output -D release=1 %{CMakeListPath}
 	make
 	make install
 	tree %{?_builddir}/%{?name}/output
-	sed -ri "s,(Version:)\s*([0-9\.]*)(.*),\1%{?version}\3," %{?_builddir}/%{?name}/output/%{?name}.pc
-	cat  %{?_builddir}/%{?name}/output/%{?name}.pc
 %install
 	mkdir -p %{?buildroot}%{?_bindir}
+	mkdir -p %{?buildroot}%{?_initddir}
+	mkdir -p %{?buildroot}%{?_sysconfdir}
 
 	mv %{?_builddir}/%{?name}/output/%{?name}d %{?buildroot}%{?_bindir}
+	mv %{?_builddir}/%{?name}/output/%{?name}d.sh %{?buildroot}%{?_initddir}/%{?name}d
+	mv %{?_builddir}/%{?name}/output/%{?name}.yaml %{?buildroot}%{?_sysconfdir}
+	
+
+	
 
 #清理
 %clean
-	rm -f %{?_builddir}/%{?name}/%{?name}.so.%{?version}
 
 #安装之前执行脚本
 %pre
@@ -42,18 +46,17 @@ Prefix:		%{_sysconfdir}
 
 #卸载之前执行脚本
 %preun
-
-#卸载之前执行脚本
+	chkconfig mudisd off
+	service mudisd stop
+#卸载之后执行脚本
 %postun
 
 #需要文件
 %files
 	%defattr(-,root,root,-)
-	%{?_libdir}/lib%{?name}.so.*
 	%{?_bindir}/%{?name}d
-#	%{?_libdir}/%{?name}.so.%{?version}
-#	%config(noreplace) %{?_sysconfdir}/%{?name}/*
-
+	%attr(751,root,root) %{?_initddir}/%{?name}d
+	%{?_sysconfdir}/%{?name}.yaml
 #更新日志
 %changelog
 	*Thu Sep 17 2015 打包格式更新
