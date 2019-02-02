@@ -1,0 +1,17 @@
+server: 
+  thread: 4	# thread 线程数
+  port: 6379	# port 端口
+  host: 0.0.0.0	# 绑定ip地址
+  pidfile: /tmp/mudisd.pid
+  logfile: /tmp/mudisd.?.log
+
+proxy:
+  admin: 
+    strategy: admin
+
+  test:
+    strategy: speedy
+    upstream:
+      - 
+        host: 127.0.0.1
+        port: 6600

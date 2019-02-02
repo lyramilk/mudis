@@ -35,6 +35,10 @@ namespace lyramilk{ namespace mudis
 			s_ssdb_str_cr,
 			s_ssdb_str_data,
 			s_ssdb_str_data_cr,
+			s_http_s0	= 0x8000,
+			s_http_cr,
+			s_http_crlf,
+			s_http_crlfcr,
 		}s;
 		lyramilk::data::int64 array_item_count;
 		lyramilk::data::int64 bulk_bytes_count;
@@ -45,6 +49,13 @@ namespace lyramilk{ namespace mudis
 			rs_parse_error,
 			rs_error,
 		};
+
+		enum session_type{
+			st_unknow,
+			st_redis,
+			st_ssdb,
+			st_http,
+		};
 	  public:
 		redis_session();
 	  	virtual ~redis_session();
@@ -54,10 +65,11 @@ namespace lyramilk{ namespace mudis
 		static lyramilk::data::var exec_redis(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr);
 		static lyramilk::data::strings exec_ssdb(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr);
 	  protected:
-		bool is_ssdb;
+		session_type stype;
 		result_status parsing(char c,void* userdata);
 		result_status parsing(const char* cache, int size,int* bytesused,void* userdata);
 		virtual result_status notify_cmd(const lyramilk::data::var::array& cmd, void* userdata) = 0;
+		virtual result_status notify_httpget(void* userdata);
 	};
 
 
@@ -70,6 +82,7 @@ namespace lyramilk{ namespace mudis
 	  	virtual ~redis_proxy();
 		virtual bool onrequest(const char* cache, int size,int* bytesused, lyramilk::data::ostream& os);
 		virtual result_status notify_cmd(const lyramilk::data::var::array& cmd, void* userdata);
+		virtual result_status notify_httpget(void* userdata);
 	};
 
 }}

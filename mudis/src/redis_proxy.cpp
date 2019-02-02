@@ -1,4 +1,5 @@
 #include "redis_proxy.h"
+#include "config.h"
 #include <libmilk/stringutil.h>
 
 namespace lyramilk{ namespace mudis
@@ -10,7 +11,7 @@ namespace lyramilk{ namespace mudis
 		array_item_count = 0;
 		bulk_bytes_count = 0;
 		s = s_0;
-		is_ssdb = false;
+		stype = st_unknow;
 	}
 
 	redis_session::~redis_session()
@@ -28,12 +29,18 @@ namespace lyramilk{ namespace mudis
 			else if(c == '*') s = s_array_0;
 			else if(c == '4'){
 				s = s_ssdb_str_0;
-				is_ssdb = true;
+				stype = st_ssdb;
 				tmpstr.push_back(c);
+				break;
+			}else if(c == 'G'){
+				s = s_http_s0;
+				break;
 			}else{
+				// redis inline
 				s = s_str_0;
 				tmpstr.push_back(c);
 			}
+			stype = st_redis;
 			break;
 		case s_str_0:
 		case s_err_0:
@@ -154,6 +161,20 @@ namespace lyramilk{ namespace mudis
 				tmpstr.clear();
 				s = s_ssdb_s0;
 			}else return rs_parse_error;
+			break;
+		case s_http_s0:
+			if(c == '\r') s = s_http_cr;
+			break;
+		case s_http_cr:
+			if(c == '\n') s = s_http_crlf;
+			break;
+		case s_http_crlf:
+			if(c == '\r') s = s_http_crlfcr;
+			break;
+		case s_http_crlfcr:
+			if(c == '\n'){
+				return notify_httpget(userdata);
+			}
 			break;
 		default:
 			if(c >= '0' && c <= '9'){
@@ -401,6 +422,11 @@ label_bodys:
 	}
 
 
+	redis_session::result_status redis_session::notify_httpget(void* userdata)
+	{
+		return rs_error;
+	}
+
 	// redis_proxy
 
 	redis_proxy::redis_proxy()
@@ -434,17 +460,18 @@ label_bodys:
 		if(cmd.size() < 1){
 			return redis_proxy::rs_error;
 		}
+		if(stype != st_redis && stype != st_ssdb) return redis_proxy::rs_error;
 
 		std::ostream& os = *(std::ostream*)userdata;
 		lyramilk::data::string scmd = lyramilk::data::lower_case(cmd[0].str());
 
 		if(scmd == "auth"){
 			if(cmd.size() != 2){
-				if(is_ssdb){
+				if(stype == st_ssdb){
 					lyramilk::data::string err = "client_error";
 					lyramilk::data::string msg = "wrong number of arguments";
 					os << err.size() << "\n" << err << "\n" << msg.size() << "\n" << msg << "\n\n";
-				}else{
+				}else if(stype == st_redis){
 					os << "-ERR wrong number of arguments for '" << cmd[0].str() << "' command\r\n";
 				}
 				os.flush();
@@ -453,9 +480,19 @@ label_bodys:
 			lyramilk::data::string password = cmd[1].str();
 			group = redis_strategy_master::instance()->get_by_groupname(password);
 			if(group){
-				strategy = group->create(is_ssdb);
+				strategy = group->create(stype == st_ssdb);
 				if(strategy){
 					if(strategy->onauth(os,this)){
+						lyramilk::netio::netaddress client_addr = dest();
+						redis_session_cmd ri;
+						ri.client_host = client_addr.ip_str();
+						ri.client_port = client_addr.port;
+						ri.group = password;
+						ri.cmdtype = rct_add;
+
+						strategy->ri = ri;
+						strategy->ri.cmdtype = rct_del;
+						redis_strategy_master::instance()->queue.push(ri);
 						return redis_proxy::rs_ok;
 					}
 					return redis_proxy::rs_error;
@@ -463,24 +500,31 @@ label_bodys:
 			}
 
 
-			if(is_ssdb){
+			if(stype == st_ssdb){
 				lyramilk::data::string err = "error";
 				lyramilk::data::string msg = "invalid password";
 				os << err.size() << "\n" << err << "\n" << msg.size() << "\n" << msg << "\n\n";
-			}else{
+			}else if(stype == st_redis){
 				os << "-ERR invalid password\r\n";
 			}
 			return redis_proxy::rs_ok;
 		}else{
-			if(is_ssdb){
+			if(stype == st_ssdb){
 				lyramilk::data::string err = "noauth";
 				lyramilk::data::string msg = "authentication required.";
 				os << err.size() << "\n" << err << "\n" << msg.size() << "\n" << msg << "\n\n";
-			}else{
+			}else if(stype == st_redis){
 				os << "-NOAUTH authentication required.\r\n";
 			}
 		}
 		return redis_proxy::rs_ok;
+	}
+
+	redis_proxy::result_status redis_proxy::notify_httpget(void* userdata)
+	{
+		std::ostream& os = *(std::ostream*)userdata;
+		os << "HTTP/1.0 200 OK\r\nServer: " MUDIS_VERSION "\r\nContent-Type: text/plain\r\nContent-Length: 3\r\n\r\nok\n";
+		return redis_proxy::rs_error;
 	}
 
 }}

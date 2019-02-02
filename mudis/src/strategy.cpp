@@ -48,7 +48,11 @@ namespace lyramilk{ namespace mudis
 	}
 
 	redis_proxy_strategy::~redis_proxy_strategy()
-	{}
+	{
+		if(!ri.client_host.empty()){
+			redis_strategy_master::instance()->queue.push(ri);
+		}
+	}
 
 	// redis_proxy_group
 	redis_proxy_group::redis_proxy_group()
@@ -117,7 +121,6 @@ namespace lyramilk{ namespace mudis
 				lyramilk::klog(lyramilk::log::warning,"mudis.load_config") << D("为%s加载策略失败：%s",groupname.c_str(),strategy.c_str()) << std::endl;
 			}
 		}
-		active(1);
 		return true;
 	}
 
@@ -170,6 +173,7 @@ namespace lyramilk{ namespace mudis
 				if(r == "PONG"){
 					return true;
 				}
+				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
 			}else{
 				lyramilk::data::array cmd;
 				cmd.push_back("auth");
@@ -181,27 +185,40 @@ namespace lyramilk{ namespace mudis
 				if(r == "OK"){
 					return true;
 				}
-			}
+				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
+		}
 		}
 
 		return false;
 	}
 
 
-	int redis_strategy_master::svc()
+	bool redis_strategy_master::check_upstreams()
 	{
-		while(running){
-			std::map<lyramilk::data::string,redis_upstream_server>::iterator it =  rlist.begin();
-			for(;it!=rlist.end();++it){
-				it->second.online = check_redis(it->second.host,it->second.port,it->second.password);
-				if(it->second.online){
-					++ it->second.alive;
-				}else{
-					it->second.alive = 0;
-				}
+		std::map<lyramilk::data::string,redis_upstream_server>::iterator it =  rlist.begin();
+		for(;it!=rlist.end() && !leave;++it){
+			it->second.online = check_redis(it->second.host,it->second.port,it->second.password);
+			if(it->second.online){
+				++ it->second.alive;
+			}else{
+				it->second.alive = 0;
 			}
-			sleep(2);
 		}
-		return 0;
+		return true;
+	}
+
+	bool redis_strategy_master::check_clients()
+	{
+		redis_session_cmd ri;
+		while(queue.try_pop(&ri) && !leave){
+			//统计
+			if(ri.cmdtype == rct_add){
+				clients[ri.group].insert(ri);
+			}else if(ri.cmdtype == rct_del){
+				clients[ri.group].erase(ri);
+			}
+		}
+
+		return true;
 	}
 }}

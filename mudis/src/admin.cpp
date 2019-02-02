@@ -110,20 +110,20 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 					if(module == "server" || module == ""){
 						sinfo.push_back("# Server");
-						sinfo.push_back("mudis:" MUDIS_VERSION);
+						sinfo.push_back("  " "mudis:" MUDIS_VERSION);
 
 					}
 
 					if(module == "status" || module == ""){
 						sinfo.push_back("# Status");
-						std::map<lyramilk::data::string,redis_upstream_server>::iterator it = redis_strategy_master::instance()->rlist.begin();
+						std::map<lyramilk::data::string,redis_upstream_server>::const_iterator it = redis_strategy_master::instance()->rlist.begin();
 						for(;it!=redis_strategy_master::instance()->rlist.end();++it){
 
 							lyramilk::data::ostringstream oss;
-							oss << it->second.host << ":" << it->second.port << " ";
+							oss << "  " << it->second.host << ":" << it->second.port << " ";
 							if(it->second.online){
-								oss << "online";
-								oss << " " << it->second.alive;
+								oss << "up ";
+								oss << it->second.alive;
 							}else{
 								oss << "down -1";
 							}
@@ -133,11 +133,39 @@ namespace lyramilk{ namespace mudis { namespace strategy
 						}
 					}
 
+					if(module == "groups" || module == ""){
+						sinfo.push_back("# Groups");
+						std::map<lyramilk::data::string,std::set<redis_session_info> >::const_iterator it = redis_strategy_master::instance()->clients.begin();
+						for(;it!=redis_strategy_master::instance()->clients.end();++it){
+							lyramilk::data::ostringstream oss;
+							oss << "  " << it->first << "(" << it->second.size() << " clients)";
+							sinfo.push_back(oss.str());
+						}
+					}
+
+					if(module == "clients" || module == ""){
+						sinfo.push_back("# Clients");
+						std::map<lyramilk::data::string,std::set<redis_session_info> >::const_iterator it = redis_strategy_master::instance()->clients.begin();
+						for(;it!=redis_strategy_master::instance()->clients.end();++it){
+							lyramilk::data::ostringstream oss;
+							oss << "  " << it->first << "(" << it->second.size() << " clients)";
+							sinfo.push_back(oss.str());
+							{
+								std::set<redis_session_info>::const_iterator sit = it->second.begin();
+								for(;sit!=it->second.end();++sit){
+									lyramilk::data::ostringstream oss;
+									oss << "    " << sit->client_host << ":" << sit->client_port;
+									sinfo.push_back(oss.str());
+								}
+							}
+						}
+					}
+
 					sinfo.push_back("");
 
 					if(is_ssdb){
 						os << "2\nok\n";
-						lyramilk::data::strings::iterator it = sinfo.begin();
+						lyramilk::data::strings::const_iterator it = sinfo.begin();
 						for(;it!=sinfo.end();++it){
 							os << it->size() << "\n";
 							os << *it << "\n";
@@ -161,6 +189,13 @@ namespace lyramilk{ namespace mudis { namespace strategy
 						os << "+OK\r\n";
 					}
 					return redis_proxy::rs_ok;
+				}else if(scmd == "bye"){
+					if(is_ssdb){
+						os << "2\nok\n1\n1\n\n";
+					}else{
+						os << "+OK\r\n";
+					}
+					return redis_proxy::rs_error;
 				}
 
 				if(is_ssdb){
