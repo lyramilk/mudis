@@ -143,7 +143,7 @@ namespace lyramilk{ namespace mudis
 		in_addr* inaddr = (in_addr*)h->h_addr;
 		if(inaddr == nullptr){
 			lyramilk::klog(lyramilk::log::error,"mudis.redis_strategy_master.add_redis_server") << lyramilk::kdict("获取%s的IP地址失败：%p,%s",host.c_str(),inaddr,strerror(errno)) << std::endl;
-			return false;
+			return nullptr;
 		}
 
 		memset(&s.saddr,0,sizeof(s.saddr));

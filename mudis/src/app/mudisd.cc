@@ -72,7 +72,7 @@ void useage(lyramilk::data::string selfname)
 	std::cout << "\t-d       \t" << D("以守护进程方式启动") << std::endl;
 	std::cout << "\t-p <file>\t" << D("指定pid文件：<file>，同时忽略掉配置文件中指定的pid文件。") << std::endl;
 	std::cout << "\t-l <file>\t" << D("指定日志文件：<file>，同时忽略掉配置文件中指定的日志文件。") << std::endl;
-	std::cout << "\t-s <start|reload|trystart>\t" << D("操作模式：start=开始，reload=重新加载配置（不会断开现有连接），trystart=能够启动的时候尝试启动，比start温柔一些")  << std::endl;
+	std::cout << "\t-s <start|reload|trystart>\t" << D("操作模式：start=开始,reload=重新加载配置（不会断开现有连接）,trystart=能够启动的时候尝试启动，比start温柔一些")  << std::endl;
 	std::cout << "\t-t <file>\t" << D("测试配置文件：<file>，不会真正执行。") << std::endl;
 	std::cout << "\t-k <pid>\t"  << D("使指定的mudis进程和平结束。") << std::endl;
 }
@@ -257,7 +257,7 @@ int main(int argc,char* argv[])
 					char buff[1024] = {0};
 					readlink(filename,buff,sizeof(buff));
 					if(strstr(buff,"mudisd") != nullptr){
-						log(lyramilk::log::trace) << D("检查：%u(%s)存在，不启动。\n",pid,buff) << std::endl;
+						log(lyramilk::log::trace) << D("检查：%u(%s)存在，不启动。",pid,buff) << std::endl;
 						return 0;
 					}
 

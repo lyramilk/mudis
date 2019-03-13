@@ -8,6 +8,7 @@
 #include <pthread.h>
 #include <netdb.h>
 #include <sys/poll.h>
+#include <unistd.h>
 
 std::string remote_host = "127.0.0.1";
 unsigned short remote_port = 80;
@@ -73,7 +74,7 @@ void* thread_task(void* p)
 
 
 		while(true){
-			int ret = ::poll(pfd,2,0);
+			int ret = ::poll(pfd,2,1);
 			if(ret > 0){
 				if(pfd[1].revents&POLLIN){
 					char buff[4096];

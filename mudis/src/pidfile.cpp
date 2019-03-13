@@ -2,6 +2,7 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <sys/file.h>
+#include <unistd.h>
 
 namespace lyramilk{ namespace proc
 {
