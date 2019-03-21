@@ -51,6 +51,11 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			TODO();
 			return false;
 		}
+
+		virtual void ondestory()
+		{
+			delete this;
+		}
 	};
 
 
@@ -150,8 +155,6 @@ namespace lyramilk{ namespace mudis { namespace strategy
 									return new speedy(upstreams[idx],endpoint,is_ssdb);
 								}
 							}
-
-
 						}
 					}
 					//尝试链接失败
@@ -159,49 +162,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 					upstreams[idx]->online = false;
 				}
 			}
-			/*
-			for(std::size_t idx=0;idx<upstreams.size();++idx){
-				if(upstreams[idx]->online){
-					lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-					if(endpoint->open(upstreams[idx]->saddr,200)){
-						redis_upstream_server* rinfo = upstreams[idx];
 
-						if(rinfo->password.empty()){
-							//不登录的话也先ping一下，防假死
-							lyramilk::data::array cmd;
-							cmd.push_back("ping");
-							bool err = false;
-
-							lyramilk::netio::client c;
-							c.fd(endpoint->fd());
-							lyramilk::data::var r = is_ssdb?redis_session::exec_ssdb(c,cmd,&err):redis_session::exec_redis(c,cmd,&err);
-							c.fd(-1);
-
-							if(r == "PONG"){
-								return new speedy(upstreams[idx],endpoint);
-							}
-						}else{
-							lyramilk::data::array cmd;
-							cmd.push_back("auth");
-							cmd.push_back(rinfo->password);
-							bool err = false;
-
-							lyramilk::netio::client c;
-							c.fd(endpoint->fd());
-							lyramilk::data::var r = is_ssdb?redis_session::exec_ssdb(c,cmd,&err):redis_session::exec_redis(c,cmd,&err);
-							c.fd(-1);
-
-							if(r == "OK"){
-								return new speedy(upstreams[idx],endpoint);
-							}
-						}
-
-					}
-					//尝试链接失败
-					endpoint->dtr(endpoint);
-					upstreams[idx]->online = false;
-				}
-			}*/
 			return nullptr;
 		}
 
