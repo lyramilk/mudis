@@ -51,11 +51,6 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			TODO();
 			return false;
 		}
-
-		virtual void ondestory()
-		{
-			delete this;
-		}
 	};
 
 

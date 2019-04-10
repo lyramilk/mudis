@@ -93,6 +93,7 @@ namespace lyramilk{ namespace mudis
 	class redis_strategy_master:public lyramilk::util::factory<redis_proxy_group>
 	{
 		friend class strategy::admin;
+		friend class redis_proxy;
 		std::map<lyramilk::data::string,redis_proxy_group*> glist;	//	groupname->group
 		std::map<lyramilk::data::string,redis_upstream_server> rlist;	//	redishash->redisinfo
 	  public:

@@ -523,7 +523,29 @@ label_bodys:
 	redis_proxy::result_status redis_proxy::notify_httpget(void* userdata)
 	{
 		std::ostream& os = *(std::ostream*)userdata;
-		os << "HTTP/1.0 200 OK\r\nServer: " MUDIS_VERSION "\r\nContent-Type: text/plain\r\nContent-Length: 3\r\n\r\nok\n";
+		lyramilk::data::stringstream oss;
+/*
+		oss << "<html>\n\t<head><title>监控页面</title></head>\n\t<body>\n";
+		oss << "\t\t<table border=\"1px\">\n";
+		oss << "\t\t\t<tr><td>名称</td><td>状态</td><td>存活时间</td></tr>\n";
+		std::map<lyramilk::data::string,redis_upstream_server>::const_iterator it = redis_strategy_master::instance()->rlist.begin();
+		for(;it!=redis_strategy_master::instance()->rlist.end();++it){
+
+			if(it->second.online){
+				oss << "\t\t\t<tr><td>" << it->second.host << ":" << it->second.port << "</td><td>up</td><td>" << it->second.alive << "</td></tr>\n";
+			}else{
+				oss << "\t\t\t<tr bgcolor=\"red\"><td>" << it->second.host << ":" << it->second.port << "</td><td>down</td><td>-1</td></tr>\n";
+			}
+		}
+
+		oss << "\t\t</table>\n";
+		oss << "\t</body>\n</html>";
+
+		lyramilk::data::string body = oss.str();
+*/
+		lyramilk::data::string body = "ok";
+
+		os << "HTTP/1.0 200 OK\r\nServer: mudis/" MUDIS_VERSION " (libmilk/" LIBMILK_VERSION ")\r\nContent-Type: text/html;charset=utf8\r\nContent-Length: " << body.size() << "\r\n\r\n" << body;
 		return redis_proxy::rs_error;
 	}
 

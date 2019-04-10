@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <sys/poll.h>
 #include <unistd.h>
+#include <signal.h>
 
 std::string remote_host = "127.0.0.1";
 unsigned short remote_port = 80;
@@ -74,7 +75,7 @@ void* thread_task(void* p)
 
 
 		while(true){
-			int ret = ::poll(pfd,2,1);
+			int ret = ::poll(pfd,2,1000);
 			if(ret > 0){
 				if(pfd[1].revents&POLLIN){
 					char buff[4096];
@@ -115,16 +116,17 @@ void useage(std::string selfname)
 	std::cout << "\t-p <port>\t" << "remote port" << std::endl;
 	std::cout << "\t-l <port>\t" << "listen port" << std::endl;
 	std::cout << "\t-e <level>\t" << "0,1,2" << std::endl;
+	std::cout << "\t-d \t" << "daemon" << std::endl;
 }
 
 int main(int argc,char* argv[])
 {
-	unsigned short port = 1080;
+	unsigned short port = 80;
 
 	std::string selfname = argv[0];
 	{
 		int oc;
-		while((oc = getopt(argc, argv, "h:p:l:e:?")) != -1){
+		while((oc = getopt(argc, argv, "h:p:l:e:d?")) != -1){
 			switch(oc)
 			{
 			  case 'h':
@@ -139,6 +141,9 @@ int main(int argc,char* argv[])
 			  case 'e':
 				level = atoi(optarg);
 				break;
+			  case 'd':
+				daemon(1,0);
+				break;
 			  case '?':
 			  default:
 				useage(selfname);
@@ -147,6 +152,8 @@ int main(int argc,char* argv[])
 		}
 	}
 	printf("[process] 0.0.0.0:%d    ---->    %s:%d	with log level %d\n",port,remote_host.c_str(),remote_port,level);
+
+	signal(SIGPIPE, SIG_IGN);
 
 	int listener = ::socket(AF_INET,SOCK_STREAM, IPPROTO_IP);
 	sockaddr_in addr = {0};
