@@ -8,12 +8,13 @@
 #include <libmilk/log.h>
 #include <libmilk/dict.h>
 #include <libmilk/stringutil.h>
+#include <libmilk/setproctitle.h>
 #include <unistd.h>
 #include <signal.h>
 #include <libintl.h>
 #include <sys/epoll.h>
 
-#include <unistd.h>
+
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
@@ -30,13 +31,13 @@ bool enable_log_warning = true;
 bool enable_log_error = true;
 
 
-class teapoy_log_logfile:public lyramilk::log::logf
+class simple_log_logfile:public lyramilk::log::logf
 {
   public:
-	teapoy_log_logfile(lyramilk::data::string logfilepathfmt):lyramilk::log::logf(logfilepathfmt)
+	simple_log_logfile(lyramilk::data::string logfilepathfmt):lyramilk::log::logf(logfilepathfmt)
 	{
 	}
-	virtual ~teapoy_log_logfile()
+	virtual ~simple_log_logfile()
 	{
 	}
 
@@ -90,8 +91,10 @@ void mudis_sig_leave(int sig)
 	}
 }
 
-int main(int argc,char* argv[])
+
+int main(int argc,const char* argv[])
 {
+	lyramilk::init_setproctitle(argc,argv);
 
 	bool isdaemon = false;
 	lyramilk::data::string configure_file;
@@ -103,7 +106,7 @@ int main(int argc,char* argv[])
 	bool testconfig = false;
 	{
 		int oc;
-		while((oc = getopt(argc, argv, "c:t:dp:s:k:?")) != -1){
+		while((oc = getopt(argc, (char**)argv, "c:t:dp:s:k:?")) != -1){
 			switch(oc)
 			{
 			  case 's':
@@ -230,7 +233,7 @@ int main(int argc,char* argv[])
 	if(isdaemon){
 		::daemon(1,0);
 		if(!logfile.empty()){
-			lyramilk::klog.rebase(new teapoy_log_logfile(logfile));
+			lyramilk::klog.rebase(new simple_log_logfile(logfile));
 		}
 		lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("以守护进程方式方式启动。",configure_file.c_str()) << std::endl;
 	}else{
@@ -275,12 +278,12 @@ int main(int argc,char* argv[])
 		do{
 			chpid = fork();
 			if(chpid == 0){
+				lyramilk::setproctitle("mudisd[%u]: worker process",getppid());
 				break;
 			}
 			log(lyramilk::log::trace,__FUNCTION__) << D("启动子进程：\t%lu",(unsigned long)chpid) << std::endl;
 			sleep(1);
 		}while(waitpid(chpid,NULL,0));
-
 
 	}else{
 		log(lyramilk::log::debug,__FUNCTION__) << D("控制台模式，自动忽略日志文件。") << std::endl;

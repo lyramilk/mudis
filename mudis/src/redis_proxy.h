@@ -58,13 +58,13 @@ namespace lyramilk{ namespace mudis
 		};
 	  public:
 		redis_session();
-	  	virtual ~redis_session();
 
 
 		static bool parse(lyramilk::data::istream& is,lyramilk::data::var& v,bool* onerr);
 		static lyramilk::data::var exec_redis(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr);
 		static lyramilk::data::strings exec_ssdb(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr);
 	  protected:
+	  	virtual ~redis_session();
 		session_type stype;
 		result_status parsing(char c,void* userdata);
 		result_status parsing(const char* cache, int size,int* bytesused,void* userdata);

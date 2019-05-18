@@ -1,5 +1,5 @@
-﻿#ifndef _redis_proxy_config_h_
-#define _redis_proxy_config_h_
+﻿#ifndef _mudis_config_h_
+#define _mudis_config_h_
 
 #define MUDIS_VERSION "${version}"
 #define LIBMILK_VERSION "${LIBMILK_VERSION}"

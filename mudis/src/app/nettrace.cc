@@ -11,8 +11,8 @@
 #include <unistd.h>
 #include <signal.h>
 
-std::string remote_host = "127.0.0.1";
-unsigned short remote_port = 80;
+std::string remote_host = "192.168.220.93";
+unsigned short remote_port = 8552;
 
 int level = 0;
 
@@ -83,7 +83,7 @@ void* thread_task(void* p)
 					if(r > 0){
 						if(level == 1) printf("\x1b[32m[send]sesion %s --> %s %u bytes\x1b[0m\n",client_saddr.c_str(),server_saddr.c_str(),r);
 						if(level == 2) printf("\x1b[32m[send]sesion %s --> %s %u bytes\x1b[0m\n%.*s\n",client_saddr.c_str(),server_saddr.c_str(),r,r,buff);
-						send(pfd[0].fd,buff,r,0);
+						if(send(pfd[0].fd,buff,r,0) != r ) break;
 					}else{
 						break;
 					}
@@ -93,7 +93,7 @@ void* thread_task(void* p)
 					if(r > 0){
 						if(level == 1) printf("\x1b[33m[recv]sesion %s <-- %s %u bytes\x1b[0m\n",client_saddr.c_str(),server_saddr.c_str(),r);
 						if(level == 2) printf("\x1b[33m[recv]sesion %s <-- %s %u bytes\x1b[0m\n%.*s\n",client_saddr.c_str(),server_saddr.c_str(),r,r,buff);
-						send(pfd[1].fd,buff,r,0);
+						if(send(pfd[1].fd,buff,r,0) != r ) break;
 					}else{
 						break;
 					}
@@ -121,7 +121,7 @@ void useage(std::string selfname)
 
 int main(int argc,char* argv[])
 {
-	unsigned short port = 80;
+	unsigned short port = 8311;
 
 	std::string selfname = argv[0];
 	{
