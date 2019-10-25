@@ -81,12 +81,17 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			lyramilk::data::map conf = gcfg;
 			lyramilk::data::array& upstreams = conf["upstream"];
 			for(lyramilk::data::array::iterator it = upstreams.begin();it != upstreams.end();++it){
-				lyramilk::data::string host = it->operator[]("host").str();
-				unsigned short port = it->operator[]("port");
-				lyramilk::data::string password = it->operator[]("password").str();
+				if(it->type() != lyramilk::data::var::t_map) continue;
+				lyramilk::data::map& m = *it;
+				lyramilk::data::string host = m["host"].str();
+				unsigned short port = m["port"];
+				lyramilk::data::string password = m["password"].str();
 
 				redis_upstream_server* srv = redis_strategy_master::instance()->add_redis_server(host,port,password);
 				if(srv){
+					srv->weight = m["weight"].conv(1);
+					if(srv->weight > 1000) srv->weight = 1000;
+					if(srv->weight < 0) srv->weight = 0;
 					this->upstreams.push_back(srv);
 				}
 			}
@@ -95,69 +100,40 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 		virtual redis_proxy_strategy* create(bool is_ssdb)
 		{
-			for(int i=0;i<10;++i){
-				int idx = rand() % upstreams.size();
-
-				if(upstreams[idx]->online){
-					lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-					if(endpoint->open(upstreams[idx]->saddr,200)){
-						redis_upstream_server* rinfo = upstreams[idx];
-						if(rinfo->password.empty()){
-							//不登录的话也先ping一下，防假死
-							lyramilk::data::array cmd;
-							cmd.push_back("ping");
-							bool err = false;
-
-							if(is_ssdb){
-								lyramilk::netio::client c;
-								c.fd(endpoint->fd());
-								lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
-								c.fd(-1);
-
-								if(r.size() > 0 && r[0] == "ok"){
-									return new speedy(upstreams[idx],endpoint,is_ssdb);
-								}
-							}else{
-								lyramilk::netio::client c;
-								c.fd(endpoint->fd());
-								lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
-								c.fd(-1);
-								if(r == "PONG"){
-									return new speedy(upstreams[idx],endpoint,is_ssdb);
-								}
-							}
-
-						}else{
-							lyramilk::data::array cmd;
-							cmd.push_back("auth");
-							cmd.push_back(rinfo->password);
-							bool err = false;
-
-							if(is_ssdb){
-								lyramilk::netio::client c;
-								c.fd(endpoint->fd());
-								lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
-								c.fd(-1);
-								if(r.size() > 0 && r[0] == "ok"){
-									return new speedy(upstreams[idx],endpoint,is_ssdb);
-								}
-							}else{
-								lyramilk::netio::client c;
-								c.fd(endpoint->fd());
-								lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
-								c.fd(-1);
-								if(r == "OK"){
-									return new speedy(upstreams[idx],endpoint,is_ssdb);
-								}
-							}
-						}
+			for(unsigned int i=0;i<3;++i){
+				int weight_total = 0;
+				for(unsigned int idx=0;idx<upstreams.size();++idx){
+					if(upstreams[idx]->online){
+						weight_total += upstreams[idx]->weight;
 					}
-					//尝试链接失败
-					endpoint->dtr(endpoint);
-					upstreams[idx]->online = false;
+				}
+
+				int magic = rand() % weight_total;
+				for(unsigned int idx=0;idx<upstreams.size();++idx){
+					if(magic < upstreams[idx]->weight){
+						lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
+						if(connect_upstream(is_ssdb,endpoint,upstreams[idx])){
+							return new speedy(upstreams[idx],endpoint,is_ssdb);
+						}
+
+						//尝试链接失败
+						endpoint->dtr(endpoint);
+						upstreams[idx]->online = false;
+					}else{
+						magic -= upstreams[idx]->weight;
+					}
 				}
 			}
 
+			for(unsigned int idx=0;idx<upstreams.size();++idx){
+				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
+				if(connect_upstream(is_ssdb,endpoint,upstreams[idx])){
+					return new speedy(upstreams[idx],endpoint,is_ssdb);
+				}
+				//尝试链接失败
+				endpoint->dtr(endpoint);
+				upstreams[idx]->online = false;
+			}
 			return nullptr;
 		}
 

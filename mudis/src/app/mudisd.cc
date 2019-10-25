@@ -71,6 +71,7 @@ void useage(lyramilk::data::string selfname)
 	std::cout << "version: " << MUDIS_VERSION << std::endl;
 	std::cout << "\t-c <file>\t" << D("使用配置文件：<file>") << std::endl;
 	std::cout << "\t-d       \t" << D("以守护进程方式启动") << std::endl;
+	std::cout << "\t-D       \t" << D("以守护进程方式启动，但会在前台阻塞住，方便docker中使用。") << std::endl;
 	std::cout << "\t-p <file>\t" << D("指定pid文件：<file>，同时忽略掉配置文件中指定的pid文件。") << std::endl;
 	std::cout << "\t-l <file>\t" << D("指定日志文件：<file>，同时忽略掉配置文件中指定的日志文件。") << std::endl;
 	std::cout << "\t-s <start|reload|trystart>\t" << D("操作模式：start=开始,reload=重新加载配置（不会断开现有连接）,trystart=能够启动的时候尝试启动，比start温柔一些")  << std::endl;
@@ -97,6 +98,7 @@ int main(int argc,const char* argv[])
 	lyramilk::init_setproctitle(argc,argv);
 
 	bool isdaemon = false;
+	bool daemon_wait = false;
 	lyramilk::data::string configure_file;
 	lyramilk::data::string operate = "start";
 	lyramilk::data::string selfname = argv[0];
@@ -106,7 +108,7 @@ int main(int argc,const char* argv[])
 	bool testconfig = false;
 	{
 		int oc;
-		while((oc = getopt(argc, (char**)argv, "c:t:dp:s:k:?")) != -1){
+		while((oc = getopt(argc, (char**)argv, "c:t:dDp:s:k:?")) != -1){
 			switch(oc)
 			{
 			  case 's':
@@ -114,6 +116,10 @@ int main(int argc,const char* argv[])
 				break;
 			  case 'd':
 				isdaemon = true;
+				break;
+			  case 'D':
+				isdaemon = true;
+				daemon_wait = true;
 				break;
 			  case 'c':
 				configure_file = optarg;
@@ -231,11 +237,21 @@ int main(int argc,const char* argv[])
 	signal(SIGUSR1, mudis_sig_leave);
 
 	if(isdaemon){
+		if(daemon_wait){
+			pid_t middle_pid = fork();
+			if(middle_pid != 0){
+				while(true){
+					sleep(100);
+				}
+			}
+		}
+
+
 		::daemon(1,0);
 		if(!logfile.empty()){
 			lyramilk::klog.rebase(new simple_log_logfile(logfile));
 		}
-		lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("以守护进程方式方式启动。",configure_file.c_str()) << std::endl;
+		lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("以守护进程方式方式启动%s。",configure_file.c_str()) << std::endl;
 	}else{
 		enable_log_debug = true;
 	}

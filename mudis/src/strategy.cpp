@@ -26,6 +26,7 @@ namespace lyramilk{ namespace mudis
 		online = false;
 		alive = 0;
 		payload = 0;
+		weight = 0;
 	}
 
 	redis_upstream_server::~redis_upstream_server()
@@ -61,6 +62,65 @@ namespace lyramilk{ namespace mudis
 
 	redis_proxy_group::~redis_proxy_group()
 	{
+	}
+
+
+	bool redis_proxy_group::connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream)
+	{
+		if(endpoint->open(upstream->saddr,200)){
+			redis_upstream_server* rinfo = upstream;
+			if(rinfo->password.empty()){
+				//不登录的话也先ping一下，防假死
+				lyramilk::data::array cmd;
+				cmd.push_back("ping");
+				bool err = false;
+
+				if(is_ssdb){
+					lyramilk::netio::client c;
+					c.fd(endpoint->fd());
+					lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
+					c.fd(-1);
+
+					if(r.size() > 0 && r[0] == "ok"){
+						return true;
+					}
+				}else{
+					lyramilk::netio::client c;
+					c.fd(endpoint->fd());
+					lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
+					c.fd(-1);
+					if(r == "PONG"){
+						return true;
+					}
+				}
+
+			}else{
+				lyramilk::data::array cmd;
+				cmd.push_back("auth");
+				cmd.push_back(rinfo->password);
+				bool err = false;
+
+				if(is_ssdb){
+					lyramilk::netio::client c;
+					c.fd(endpoint->fd());
+					lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
+					c.fd(-1);
+					if(r.size() > 0 && r[0] == "ok"){
+						return true;
+					}
+				}else{
+					lyramilk::netio::client c;
+					c.fd(endpoint->fd());
+					lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
+					c.fd(-1);
+					if(r == "OK"){
+						return true;
+					}
+				}
+			}
+		}
+
+		return false;
 	}
 
 	// redis_strategy_master

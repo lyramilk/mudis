@@ -110,7 +110,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 					if(module == "server" || module == ""){
 						sinfo.push_back("# Server");
-						sinfo.push_back("  " "mudis:" MUDIS_VERSION);
+						sinfo.push_back("  " "mudis: " MUDIS_VERSION);
 
 					}
 
