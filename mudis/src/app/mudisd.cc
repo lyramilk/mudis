@@ -9,6 +9,7 @@
 #include <libmilk/dict.h>
 #include <libmilk/stringutil.h>
 #include <libmilk/setproctitle.h>
+#include <libmilk/exception.h>
 #include <unistd.h>
 #include <signal.h>
 #include <libintl.h>
@@ -172,7 +173,9 @@ int main(int argc,const char* argv[])
 			vconf.clear();
 		}
 		if(vconf.type() == lyramilk::data::var::t_map){
-			lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("加载json配置文件%s成功。",configure_file.c_str()) << std::endl;
+			lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("加载%s配置文件%s成功","json",configure_file.c_str()) << std::endl;
+		}else{
+			lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载%s配置文件%s失败：%s","json",configure_file.c_str(),"解析失败") << std::endl;
 		}
 	}else if(configure_file.compare(configure_file.size()-5,configure_file.size(),".yaml") == 0){
 
@@ -188,13 +191,17 @@ int main(int argc,const char* argv[])
 			ifs.close();
 		}
 
-		lyramilk::data::array ar;
-		if(lyramilk::data::yaml::parse(filedata + "\n...\nok\n",&ar)){
-			if(ar.size() > 1 && ar[ar.size() - 1] == "ok"){
-				//防止出现解析不完全的情况
-				vconf = ar[0];
-				lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("加载yaml配置文件%s成功。",configure_file.c_str()) << std::endl;
+		try{
+			lyramilk::data::array ar;
+			if(lyramilk::data::yaml::parse(filedata + "\n...\nok\n",&ar)){
+				if(ar.size() > 1 && ar[ar.size() - 1] == "ok"){
+					//防止出现解析不完全的情况
+					vconf = ar[0];
+					lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("加载%s配置文件%s成功","yaml",configure_file.c_str()) << std::endl;
+				}
 			}
+		}catch(lyramilk::exception& e){
+			lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载%s配置文件%s失败：%s","yaml",configure_file.c_str(),e.what()) << std::endl;
 		}
 	}
 
@@ -349,8 +356,8 @@ int main(int argc,const char* argv[])
 	pool.add_to_thread(0,ins,EPOLLIN);
 
 
-	time_t tlast12 = time(nullptr);
-	time_t tlast2 = time(nullptr);
+	time_t tlast12 = 0;
+	time_t tlast2 = 0;
 
 	while(pool.get_fd_count() > 0){
 		lyramilk::mudis::redis_strategy_master::instance()->check_clients();
@@ -362,6 +369,7 @@ int main(int argc,const char* argv[])
 				lyramilk::proc::pidfile::destroy(pf);
 				pf = nullptr;
 				log(lyramilk::log::trace,__FUNCTION__) << D("进入维持状态，不再接受新连接。") << std::endl;
+				continue;
 			}else{
 				time_t tnow = time(nullptr);
 				if(tnow >= tlast12 + 12){
@@ -378,16 +386,17 @@ int main(int argc,const char* argv[])
 						}
 					}
 				}
-				usleep(delay_msec * 1000);
 			}
-		}else{
-			time_t tnow = time(nullptr);
-			if(tnow >= tlast2 + 2){
-				lyramilk::mudis::redis_strategy_master::instance()->check_upstreams();
-				tlast2 = tnow;
-			}
-			usleep(delay_msec * 1000);
 		}
+		time_t tnow = time(nullptr);
+		if(tnow >= tlast2 + 2){
+			lyramilk::mudis::redis_strategy_master::instance()->check_upstreams();
+			tlast2 = tnow;
+		}
+
+		lyramilk::mudis::redis_strategy_master::instance()->check_groups();
+		
+		usleep(delay_msec * 10);
 	}
 	log(lyramilk::log::error,__FUNCTION__) << D("进程退出") << std::endl;
 	return 0;

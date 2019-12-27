@@ -2,26 +2,15 @@
 #include "redis_proxy.h"
 #include <libmilk/dict.h>
 
-/*
-#include <sys/epoll.h>
-#include <sys/poll.h>
-#include <errno.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <string.h>
-#include <cassert>
-#include <netdb.h>
-#include <sys/ioctl.h>
-*/
 namespace lyramilk{ namespace mudis { namespace strategy
 {
-	class order:public redis_proxy_strategy
+	class weight:public redis_proxy_strategy
 	{
 		redis_upstream_server* rinfo;
 		lyramilk::netio::aioproxysession_speedy* endpoint;
 		bool is_ssdb;
 	  public:
-		order(redis_upstream_server* ri,lyramilk::netio::aioproxysession_speedy* endpoint,bool is_ssdb)
+		weight(redis_upstream_server* ri,lyramilk::netio::aioproxysession_speedy* endpoint,bool is_ssdb)
 		{
 			rinfo = ri;
 			rinfo->add_ref();
@@ -29,7 +18,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			this->is_ssdb = is_ssdb;
 		}
 
-		virtual ~order()
+		virtual ~weight()
 		{
 			rinfo->release();
 		}
@@ -54,7 +43,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 	};
 
 
-	class order_master:public redis_proxy_group
+	class weight_master:public redis_proxy_group
 	{
 		lyramilk::data::string name;
 		lyramilk::threading::mutex_rw lock;
@@ -62,22 +51,22 @@ namespace lyramilk{ namespace mudis { namespace strategy
 		std::vector<redis_upstream*> activelist;
 		std::vector<redis_upstream*> backuplist;
 	  public:
-		order_master()
+		weight_master()
 		{
 		}
 
-		virtual ~order_master()
+		virtual ~weight_master()
 		{
 		}
 
 		static redis_proxy_group* ctr(void*)
 		{
-			return new order_master;
+			return new weight_master;
 		}
 
 		static void dtr(redis_proxy_group* p)
 		{
-			delete (order_master*)p;
+			delete (weight_master*)p;
 		}
 
 		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg)
@@ -94,7 +83,10 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 				redis_upstream_server* srv = redis_strategy_master::instance()->add_redis_server(host,port,password);
 				if(srv){
-					this->upstreams.push_back(redis_upstream(srv,m["weight"].conv(1)));
+					int weight = m["weight"].conv(1);
+					if(weight > 100) weight = 100;
+					if(weight < 0) weight = 0;
+					this->upstreams.push_back(redis_upstream(srv,weight));
 					srv->group.push_back(this);
 				}
 			}
@@ -122,21 +114,34 @@ namespace lyramilk{ namespace mudis { namespace strategy
 		virtual redis_proxy_strategy* create(bool is_ssdb)
 		{
 			lyramilk::threading::mutex_sync _(lock.r());
-
-
-			for(unsigned int i=0;i<upstreams.size();++i){
-				unsigned int idx = i % upstreams.size();
-				redis_upstream* pupstream = activelist[idx];
-				redis_upstream_server* pserver = pupstream->srv;
-				if(!pserver->online) continue;
-
-				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-				if(connect_upstream(is_ssdb,endpoint,pserver)){
-					return new order(pserver,endpoint,is_ssdb);
+			for(unsigned int i=0;i<3;++i){
+				int weight_total = 0;
+				for(unsigned int idx=0;idx<activelist.size();++idx){
+					weight_total += activelist[idx]->weight;
 				}
-				//尝试链接失败
-				endpoint->dtr(endpoint);
-				pserver->enable(false);
+
+
+				if(weight_total > 0){
+					int magic = rand() % weight_total;
+					for(unsigned int idx=0;idx<activelist.size();++idx){
+						redis_upstream* pupstream = activelist[idx];
+						redis_upstream_server* pserver = pupstream->srv;
+						if(!pserver->online) continue;
+
+						if(magic < pupstream->weight){
+							lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
+							if(connect_upstream(is_ssdb,endpoint,pserver)){
+								return new weight(pserver,endpoint,is_ssdb);
+							}
+
+							//尝试链接失败
+							endpoint->dtr(endpoint);
+							pserver->enable(false);
+						}else{
+							magic -= pupstream->weight;
+						}
+					}
+				}
 			}
 
 			int loopoffset = rand() % backuplist.size();
@@ -148,7 +153,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
 				if(connect_upstream(is_ssdb,endpoint,pserver)){
-					return new order(pserver,endpoint,is_ssdb);
+					return new weight(pserver,endpoint,is_ssdb);
 				}
 
 				//尝试链接失败
@@ -161,7 +166,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 		virtual void destory(redis_proxy_strategy* p)
 		{
 			if(p){
-				order* sp = (order*)p;
+				weight* sp = (weight*)p;
 				delete sp;
 			}
 		}
@@ -170,7 +175,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 	static __attribute__ ((constructor)) void __init()
 	{
-		redis_strategy_master::instance()->define("order",order_master::ctr,order_master::dtr);
+		redis_strategy_master::instance()->define("weight",weight_master::ctr,weight_master::dtr);
 	}
 
 

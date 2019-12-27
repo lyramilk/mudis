@@ -123,7 +123,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 							oss << "  " << it->second.host << ":" << it->second.port << " ";
 							if(it->second.online){
 								oss << "up ";
-								oss << it->second.alive;
+								oss << it->second.online;
 							}else{
 								oss << "down -1";
 							}
@@ -147,15 +147,17 @@ namespace lyramilk{ namespace mudis { namespace strategy
 						sinfo.push_back("# Clients");
 						std::map<lyramilk::data::string,std::set<redis_session_info> >::const_iterator it = redis_strategy_master::instance()->clients.begin();
 						for(;it!=redis_strategy_master::instance()->clients.end();++it){
-							lyramilk::data::ostringstream oss;
-							oss << "  " << it->first << "(" << it->second.size() << " clients)";
-							sinfo.push_back(oss.str());
-							{
-								std::set<redis_session_info>::const_iterator sit = it->second.begin();
-								for(;sit!=it->second.end();++sit){
-									lyramilk::data::ostringstream oss;
-									oss << "    " << sit->client_host << ":" << sit->client_port;
-									sinfo.push_back(oss.str());
+							if(it->second.size() > 0){
+								lyramilk::data::ostringstream oss;
+								oss << "  " << it->first << "(" << it->second.size() << " clients)";
+								sinfo.push_back(oss.str());
+								{
+									std::set<redis_session_info>::const_iterator sit = it->second.begin();
+									for(;sit!=it->second.end();++sit){
+										lyramilk::data::ostringstream oss;
+										oss << "    " << sit->client_host << ":" << sit->client_port;
+										sinfo.push_back(oss.str());
+									}
 								}
 							}
 						}
@@ -165,11 +167,16 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 					if(is_ssdb){
 						os << "2\nok\n";
+						os << "0\n\n";
+						//os << "6\nserver\n";
+						lyramilk::data::ostringstream oss;
 						lyramilk::data::strings::const_iterator it = sinfo.begin();
 						for(;it!=sinfo.end();++it){
-							os << it->size() << "\n";
-							os << *it << "\n";
+							oss << *it << "\n";
 						}
+						lyramilk::data::string str = oss.str();
+						os << str.size() << "\n";
+						os << str << "\n";
 						os << "\n";
 					}else{
 						os << "*" << sinfo.size() << "\r\n";
@@ -234,9 +241,15 @@ namespace lyramilk{ namespace mudis { namespace strategy
 				delete (admin_master*)p;
 			}
 
-			virtual bool load_config(const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg)
+			virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg)
 			{
 				return true;
+			}
+
+
+			virtual void onlistchange()
+			{
+				
 			}
 
 			virtual redis_proxy_strategy* create(bool is_ssdb)

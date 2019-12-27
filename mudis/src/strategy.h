@@ -16,6 +16,7 @@ namespace lyramilk{ namespace mudis
 	};
 
 	class redis_proxy;
+	class redis_proxy_group;
 
 	struct redis_upstream_server
 	{
@@ -25,16 +26,27 @@ namespace lyramilk{ namespace mudis
 		bool online;
 		int alive;
 		int payload;
-		int weight;
 
+		std::vector<redis_proxy_group*> group;
 		sockaddr_in saddr;
 
 		redis_upstream_server();
 		~redis_upstream_server();
 
-
+		void enable(bool isenable);
 		void add_ref();
 		void release();
+	};
+
+	struct redis_upstream
+	{
+		redis_upstream_server* srv;
+		int weight;
+
+		redis_upstream(redis_upstream_server* p,int w){
+			srv = p;
+			weight = w;
+		}
 	};
 
 	struct  redis_session_info
@@ -81,13 +93,19 @@ namespace lyramilk{ namespace mudis
 
 	class redis_proxy_group
 	{
+		bool changed;
+	  protected:
+		virtual void onlistchange() = 0;
 	  public:
 		redis_proxy_group();
 	  	virtual ~redis_proxy_group();
 
-		virtual bool load_config(const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg) = 0;
+		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg) = 0;
 		virtual redis_proxy_strategy* create(bool is_ssdb) = 0;
 		virtual void destory(redis_proxy_strategy* p) = 0;
+
+		virtual void update();
+		virtual void reflush();
 
 		static bool connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream);
 	};
@@ -117,6 +135,7 @@ namespace lyramilk{ namespace mudis
 		virtual bool load_config(const lyramilk::data::map& cfg);
 		virtual redis_upstream_server* add_redis_server(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
 		virtual bool check_upstreams();
+		virtual bool check_groups();
 		virtual bool check_clients();
 	};
 }}

@@ -26,11 +26,21 @@ namespace lyramilk{ namespace mudis
 		online = false;
 		alive = 0;
 		payload = 0;
-		weight = 0;
 	}
 
 	redis_upstream_server::~redis_upstream_server()
 	{
+	}
+
+	void redis_upstream_server::enable(bool isenable)
+	{
+		if(isenable != online){
+			online = isenable;
+			for(std::vector<redis_proxy_group*>::iterator it = group.begin();it!=group.end();++it){
+				redis_proxy_group* p = *it;
+				p->update();
+			}
+		}
 	}
 
 	void redis_upstream_server::add_ref()
@@ -58,12 +68,29 @@ namespace lyramilk{ namespace mudis
 	// redis_proxy_group
 	redis_proxy_group::redis_proxy_group()
 	{
+		changed = true;
 	}
 
 	redis_proxy_group::~redis_proxy_group()
 	{
 	}
 
+
+	void redis_proxy_group::update()
+	{
+		changed = true;
+	}
+
+
+	void redis_proxy_group::reflush()
+	{
+		if(changed){
+			onlistchange();
+			changed = false;
+		}
+	}
+
+	
 
 	bool redis_proxy_group::connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream)
 	{
@@ -169,7 +196,7 @@ namespace lyramilk{ namespace mudis
 
 			redis_proxy_group* g = create(strategy);
 			if(g){
-				if(!g->load_config(cfg,it->second)){
+				if(!g->load_config(groupname,cfg,it->second)){
 					lyramilk::klog(lyramilk::log::error,"mudis.load_config") << D("加载配置组%s(%s)失败",groupname.c_str(),strategy.c_str()) << std::endl;
 					return false;
 				}
@@ -255,14 +282,23 @@ namespace lyramilk{ namespace mudis
 
 	bool redis_strategy_master::check_upstreams()
 	{
-		std::map<lyramilk::data::string,redis_upstream_server>::iterator it =  rlist.begin();
-		for(;it!=rlist.end() && !leave;++it){
-			it->second.online = check_redis(it->second.host,it->second.port,it->second.password);
-			if(it->second.online){
+		for(std::map<lyramilk::data::string,redis_upstream_server>::iterator it =  rlist.begin();it!=rlist.end() && !leave;++it){
+			bool online = check_redis(it->second.host,it->second.port,it->second.password);
+			it->second.enable(online);
+			if(online){
 				++ it->second.alive;
 			}else{
 				it->second.alive = 0;
 			}
+		}
+		return true;
+	}
+
+	bool redis_strategy_master::check_groups()
+	{
+		for(std::map<lyramilk::data::string,redis_proxy_group*>::iterator it = glist.begin();it!=glist.end();++it){
+			redis_proxy_group* g = it->second;
+			g->reflush();
 		}
 		return true;
 	}

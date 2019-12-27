@@ -56,7 +56,11 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 	class speedy_master:public redis_proxy_group
 	{
-		std::vector<redis_upstream_server*> upstreams;	//	redishash->redisinfo
+		lyramilk::data::string name;
+		lyramilk::threading::mutex_rw lock;
+		std::vector<redis_upstream> upstreams;
+		std::vector<redis_upstream*> activelist;
+		std::vector<redis_upstream*> backuplist;
 	  public:
 		speedy_master()
 		{
@@ -76,8 +80,9 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			delete (speedy_master*)p;
 		}
 
-		virtual bool load_config(const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg)
+		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg)
 		{
+			name = groupname;
 			lyramilk::data::map conf = gcfg;
 			lyramilk::data::array& upstreams = conf["upstream"];
 			for(lyramilk::data::array::iterator it = upstreams.begin();it != upstreams.end();++it){
@@ -89,50 +94,68 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 				redis_upstream_server* srv = redis_strategy_master::instance()->add_redis_server(host,port,password);
 				if(srv){
-					srv->weight = m["weight"].conv(1);
-					if(srv->weight > 1000) srv->weight = 1000;
-					if(srv->weight < 0) srv->weight = 0;
-					this->upstreams.push_back(srv);
+					this->upstreams.push_back(redis_upstream(srv,m["weight"].conv(1)));
+					srv->group.push_back(this);
 				}
 			}
 			return true;
 		}
 
-		virtual redis_proxy_strategy* create(bool is_ssdb)
+		virtual void onlistchange()
 		{
-			for(unsigned int i=0;i<3;++i){
-				int weight_total = 0;
-				for(unsigned int idx=0;idx<upstreams.size();++idx){
-					if(upstreams[idx]->online){
-						weight_total += upstreams[idx]->weight;
-					}
-				}
-
-				int magic = rand() % weight_total;
-				for(unsigned int idx=0;idx<upstreams.size();++idx){
-					if(magic < upstreams[idx]->weight){
-						lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-						if(connect_upstream(is_ssdb,endpoint,upstreams[idx])){
-							return new speedy(upstreams[idx],endpoint,is_ssdb);
-						}
-
-						//尝试链接失败
-						endpoint->dtr(endpoint);
-						upstreams[idx]->online = false;
+			std::vector<redis_upstream*> tmpactivelist;
+			std::vector<redis_upstream*> tmpbackuplist;
+			for(unsigned int idx=0;idx<upstreams.size();++idx){
+				if(upstreams[idx].srv->online){
+					if(upstreams[idx].weight==0){
+						tmpbackuplist.push_back(&upstreams[idx]);
 					}else{
-						magic -= upstreams[idx]->weight;
+						tmpactivelist.push_back(&upstreams[idx]);
 					}
 				}
 			}
+			lyramilk::threading::mutex_sync _(lock.w());
+			activelist.swap(tmpactivelist);
+			backuplist.swap(tmpbackuplist);
+		}
 
-			for(unsigned int idx=0;idx<upstreams.size();++idx){
-				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-				if(connect_upstream(is_ssdb,endpoint,upstreams[idx])){
-					return new speedy(upstreams[idx],endpoint,is_ssdb);
+
+		virtual redis_proxy_strategy* create(bool is_ssdb)
+		{
+			lyramilk::threading::mutex_sync _(lock.r());
+			if(!activelist.empty()){
+				for(unsigned int i=0;i<3;++i){
+					int idx = rand() % activelist.size();
+					redis_upstream* pupstream = activelist[idx];
+					redis_upstream_server* pserver = pupstream->srv;
+					if(!pserver->online) continue;
+
+					lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
+					if(connect_upstream(is_ssdb,endpoint,pserver)){
+						return new speedy(pserver,endpoint,is_ssdb);
+					}
+
+					//尝试链接失败
+					endpoint->dtr(endpoint);
+					pserver->enable(false);
 				}
+			}
+
+			int loopoffset = rand() % backuplist.size();
+			for(unsigned int i=loopoffset;i < backuplist.size() + loopoffset;++i){
+				int idx = loopoffset % backuplist.size();
+				redis_upstream* pupstream = backuplist[idx];
+				redis_upstream_server* pserver = pupstream->srv;
+				if(!pserver->online) continue;
+
+				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
+				if(connect_upstream(is_ssdb,endpoint,pserver)){
+					return new speedy(pserver,endpoint,is_ssdb);
+				}
+
 				//尝试链接失败
 				endpoint->dtr(endpoint);
-				upstreams[idx]->online = false;
+				pserver->enable(false);
 			}
 			return nullptr;
 		}
