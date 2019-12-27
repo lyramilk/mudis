@@ -124,8 +124,8 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			lyramilk::threading::mutex_sync _(lock.r());
 
 
-			for(unsigned int i=0;i<upstreams.size();++i){
-				unsigned int idx = i % upstreams.size();
+			for(unsigned int i=0;i<activelist.size();++i){
+				unsigned int idx = i % activelist.size();
 				redis_upstream* pupstream = activelist[idx];
 				redis_upstream_server* pserver = pupstream->srv;
 				if(!pserver->online) continue;
@@ -139,21 +139,23 @@ namespace lyramilk{ namespace mudis { namespace strategy
 				pserver->enable(false);
 			}
 
-			int loopoffset = rand() % backuplist.size();
-			for(unsigned int i=loopoffset;i < backuplist.size() + loopoffset;++i){
-				int idx = loopoffset % backuplist.size();
-				redis_upstream* pupstream = backuplist[idx];
-				redis_upstream_server* pserver = pupstream->srv;
-				if(!pserver->online) continue;
+			if(!backuplist.empty()){
+				int loopoffset = rand() % backuplist.size();
+				for(unsigned int i=loopoffset;i < backuplist.size() + loopoffset;++i){
+					int idx = loopoffset % backuplist.size();
+					redis_upstream* pupstream = backuplist[idx];
+					redis_upstream_server* pserver = pupstream->srv;
+					if(!pserver->online) continue;
 
-				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-				if(connect_upstream(is_ssdb,endpoint,pserver)){
-					return new order(pserver,endpoint,is_ssdb);
+					lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
+					if(connect_upstream(is_ssdb,endpoint,pserver)){
+						return new order(pserver,endpoint,is_ssdb);
+					}
+
+					//尝试链接失败
+					endpoint->dtr(endpoint);
+					pserver->enable(false);
 				}
-
-				//尝试链接失败
-				endpoint->dtr(endpoint);
-				pserver->enable(false);
 			}
 			return nullptr;
 		}
