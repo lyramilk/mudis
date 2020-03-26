@@ -2,6 +2,7 @@
 #include "redis_proxy.h"
 #include "strategy.h"
 #include "config.h"
+#include "loadconfig.h"
 #include <libmilk/var.h>
 #include <libmilk/yaml1.h>
 #include <libmilk/json.h>
@@ -93,6 +94,12 @@ void mudis_sig_leave(int sig)
 	}
 }
 
+struct bind_cfgs
+{
+	unsigned short port;
+	lyramilk::data::string host;
+};
+
 
 int main(int argc,const char* argv[])
 {
@@ -154,62 +161,60 @@ int main(int argc,const char* argv[])
 		return 0;
 	}
 
-	lyramilk::data::var vconf;
-
-	if(configure_file.compare(configure_file.size()-5,configure_file.size(),".json") == 0){
-		lyramilk::data::string filedata;
-		{
-			std::ifstream ifs;
-			ifs.open(configure_file.c_str(),std::ifstream::binary|std::ifstream::in);
-			while(ifs){
-				char buff[4096];
-				ifs.read(buff,sizeof(buff));
-				filedata.append(buff,ifs.gcount());
-			}
-			ifs.close();
-		}
-
-		if(!lyramilk::data::json::parse(filedata,&vconf)){
-			vconf.clear();
-		}
-		if(vconf.type() == lyramilk::data::var::t_map){
-			lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("加载%s配置文件%s成功","json",configure_file.c_str()) << std::endl;
-		}else{
-			lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载%s配置文件%s失败：%s","json",configure_file.c_str(),"解析失败") << std::endl;
-		}
-	}else if(configure_file.compare(configure_file.size()-5,configure_file.size(),".yaml") == 0){
-
-		lyramilk::data::string filedata;
-		{
-			std::ifstream ifs;
-			ifs.open(configure_file.c_str(),std::ifstream::binary|std::ifstream::in);
-			while(ifs){
-				char buff[4096];
-				ifs.read(buff,sizeof(buff));
-				filedata.append(buff,ifs.gcount());
-			}
-			ifs.close();
-		}
-
-		try{
-			lyramilk::data::array ar;
-			if(lyramilk::data::yaml::parse(filedata + "\n...\nok\n",&ar)){
-				if(ar.size() > 1 && ar[ar.size() - 1] == "ok"){
-					//防止出现解析不完全的情况
-					vconf = ar[0];
-					lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("加载%s配置文件%s成功","yaml",configure_file.c_str()) << std::endl;
-				}
-			}
-		}catch(lyramilk::exception& e){
-			lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载%s配置文件%s失败：%s","yaml",configure_file.c_str(),e.what()) << std::endl;
-		}
-	}
-
+	lyramilk::data::var vconf = lyramilk::util::get_config_from_file(configure_file);
 
 	if(lyramilk::data::var::t_map != vconf.type()){
 		lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载配置文件%s出现错误。",configure_file.c_str()) << std::endl;
 		return -2;
 	}
+
+
+	/* 解析配置 */
+	{
+		lyramilk::data::var & vproxy_cfg = vconf["proxy"];
+		if(vproxy_cfg.type() == lyramilk::data::var::t_map){
+			lyramilk::data::map& mproxy_cfg = vproxy_cfg; 
+			for(lyramilk::data::map::iterator mproxy_cfg_it = mproxy_cfg.begin();mproxy_cfg_it != mproxy_cfg.end();++mproxy_cfg_it){
+				if(mproxy_cfg_it->second.type() != lyramilk::data::var::t_map){
+					lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载配置文件%s出现错误。",configure_file.c_str()) << std::endl;
+					return -2;
+				}
+				lyramilk::data::string group = mproxy_cfg_it->first;
+				lyramilk::data::map& mgroup_cfg = mproxy_cfg_it->second;
+
+				if(mgroup_cfg["strategy"].type() != lyramilk::data::var::t_str){
+					lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载配置文件%s出现错误。",configure_file.c_str()) << std::endl;
+					return -2;
+				}
+				lyramilk::data::string strategy = mgroup_cfg["strategy"].str();
+
+				if(mgroup_cfg["upstream"].type() == lyramilk::data::var::t_invalid){
+					mgroup_cfg["upstream"].type(lyramilk::data::var::t_array);
+				}
+
+				if(mgroup_cfg["upstream"].type() != lyramilk::data::var::t_array){
+					lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载配置文件%s出现错误。",configure_file.c_str()) << std::endl;
+					return -2;
+				}
+
+
+				lyramilk::data::array& upstream = mgroup_cfg["upstream"];
+				if(!lyramilk::mudis::redis_strategy_master::instance()->load_group_config(group,strategy,upstream)){
+					lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载配置文件%s出现错误。",configure_file.c_str()) << std::endl;
+					return -2;
+				}
+			}
+
+		}else if(vproxy_cfg.type() == lyramilk::data::var::t_array){
+			TODO();
+		}else{
+			lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载配置文件%s出现错误：类型%s错误",configure_file.c_str(),vproxy_cfg.type_name().c_str()) << std::endl;
+			return -2;
+		}
+	
+	}
+
+
 	if(testconfig){
 		lyramilk::klog(lyramilk::log::trace,"mudis.main") << D("测试配置文件%s未发现错误。",configure_file.c_str()) << std::endl;
 		return 0;
@@ -219,8 +224,27 @@ int main(int argc,const char* argv[])
 	/* 配置 server */
 	lyramilk::data::string emptystr;
 	int threads_count = vconf.path("/server/thread").conv(1);
-	unsigned short port = vconf.path("/server/port").conv(6379);
-	lyramilk::data::string host = vconf.path("/server/host").conv(emptystr);
+
+
+	std::vector<bind_cfgs> bindconf;
+
+	if(vconf.path("/server/host").type() == lyramilk::data::var::t_invalid && vconf.path("/server/port").type() == lyramilk::data::var::t_invalid && vconf.path("/server/bind").type() == lyramilk::data::var::t_array){
+		lyramilk::data::array ar = vconf.path("/server/bind");
+		for(lyramilk::data::array::iterator it = ar.begin();it!=ar.end();++it){
+			bind_cfgs cfg;
+			cfg.host = it->at("host").conv(emptystr);
+			cfg.port = it->at("port").conv(6379);
+			bindconf.push_back(cfg);
+		}
+	}else{
+		bind_cfgs cfg;
+		cfg.port = vconf.path("/server/port").conv(6379);
+		cfg.host = vconf.path("/server/host").conv(emptystr);
+		bindconf.push_back(cfg);
+	}
+
+
+
 	if(pidfilename.empty()){
 		lyramilk::data::string emptystr;
 		pidfilename = vconf.path("/server/pidfile").conv(emptystr);
@@ -315,45 +339,50 @@ int main(int argc,const char* argv[])
 
 	signal(SIGPIPE, SIG_IGN);
 
-
-	/* 基本信息 */
-	if(!host.empty()){
-		log(lyramilk::log::trace,__FUNCTION__) << D("IP: \t%s",host.c_str()) << std::endl;
-	}
-
-	log(lyramilk::log::trace,__FUNCTION__) << D("端口:\t %d",port) << std::endl;
 	log(lyramilk::log::trace,__FUNCTION__) << D("线程数:\t %d",threads_count) << std::endl;
 	if(!pidfilename.empty()){
 		log(lyramilk::log::trace,__FUNCTION__) << D("PID文件:\t%s",pidfilename.c_str()) << std::endl;
 	}
 
-	/* 开始服务 */
-	redis_proxy_server* ins = new redis_proxy_server;
-	bool isok = false;
-	{
-		for(int i=0;i<3;++i){
-			if(host.empty()){
-				if(ins->open(port)){
-					isok = true;
-					break;
-				}
-			}else{
-				if(ins->open(host,port)){
-					isok = true;
-					break;
-				}
-			}
-			if(operate != "reload") break;
-			sleep(1);
-		}
-	}
-
-
-	/* 开始服务 */
-	lyramilk::mudis::redis_strategy_master::instance()->load_config(vconf);
 
 	lyramilk::io::aiopoll_safe pool(threads_count);
-	pool.add_to_thread(0,ins,EPOLLIN);
+
+
+	/* 开始服务 */
+	std::vector<redis_proxy_server*> servers;
+	for(std::vector<bind_cfgs>::iterator it = bindconf.begin();it != bindconf.end();++it){
+		redis_proxy_server* ins = new redis_proxy_server;
+		bool isok = false;
+		{
+			for(int i=0;i<3;++i){
+				if(it->host.empty()){
+					if(ins->open(it->port)){
+						isok = true;
+						break;
+					}
+				}else{
+					if(ins->open(it->host,it->port)){
+						isok = true;
+						break;
+					}
+				}
+				if(operate != "reload") break;
+				sleep(1);
+			}
+		}
+
+		if(isok){
+			//ins->setkeepalive(20,3);
+			//ins->setnodelay(true);
+
+			if(pool.add_to_thread(0,ins,EPOLLIN)){
+				log(lyramilk::log::trace,__FUNCTION__) << D("连接成功：IP=%s,端口=%d",it->host.c_str(),it->port) << std::endl;
+				servers.push_back(ins);
+			}
+		}else{
+			log(lyramilk::log::error,__FUNCTION__) << D("连接失败：IP=%s,端口=%d",it->host.c_str(),it->port) << std::endl;
+		}
+	}
 
 
 	time_t tlast12 = 0;
@@ -362,10 +391,14 @@ int main(int argc,const char* argv[])
 	while(pool.get_fd_count() > 0){
 		lyramilk::mudis::redis_strategy_master::instance()->check_clients();
 		if(lyramilk::mudis::redis_strategy_master::instance()->leave){
-			if(ins){
-				pool.remove_on_thread(0,ins);
-				delete ins;
-				ins = nullptr;
+			if(servers.size() > 0){
+				for(std::vector<redis_proxy_server*>::iterator it = servers.begin();it != servers.end();++it){
+					redis_proxy_server* ins = *it;
+					pool.remove_on_thread(0,ins);
+					delete ins;
+					ins = nullptr;
+				}
+				servers.clear();
 				lyramilk::proc::pidfile::destroy(pf);
 				pf = nullptr;
 				log(lyramilk::log::trace,__FUNCTION__) << D("进入维持状态，不再接受新连接。") << std::endl;

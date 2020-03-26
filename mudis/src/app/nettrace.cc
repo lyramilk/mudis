@@ -10,15 +10,47 @@
 #include <sys/poll.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/shm.h>
+#include <netinet/tcp.h>
 
-std::string remote_host = "192.168.220.93";
-unsigned short remote_port = 8552;
+std::string remote_host = "127.0.0.1";
+unsigned short remote_port = 80;
+unsigned short local_port = 8080;
 
 int level = 0;
+int leave = false;
+int threadcount = 1;
+
+class ref_thread
+{
+  public:
+	ref_thread(){
+		__sync_add_and_fetch(&threadcount,1);
+	}
+	~ref_thread(){
+		__sync_sub_and_fetch(&threadcount,1);
+	}
+
+};
 
 void* thread_task(void* p)
 {
+	ref_thread holder;
+
+
 	int client_fd = (int)(long long)p;
+
+	{
+		int val = 1;
+		int disableval = 1;
+		int interval = 20;
+		int cnt = 3;
+		setsockopt(client_fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+		setsockopt(client_fd, SOL_SOCKET, SO_KEEPALIVE, &disableval, sizeof(disableval));
+		setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPIDLE, &interval, sizeof(interval));
+		setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPINTVL, &interval, sizeof(interval));
+		setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
+	}
 
 	sockaddr_in client_addr = {0};
 	socklen_t client_addr_len = sizeof(client_addr);
@@ -119,14 +151,18 @@ void useage(std::string selfname)
 	std::cout << "\t-d \t" << "daemon" << std::endl;
 }
 
+void mudis_sig_leave(int sig)
+{
+	leave = true;
+}
+
 int main(int argc,char* argv[])
 {
-	unsigned short port = 8311;
-
+	bool isdaemon = false;
 	std::string selfname = argv[0];
 	{
 		int oc;
-		while((oc = getopt(argc, argv, "h:p:l:e:d?")) != -1){
+		while((oc = getopt(argc, argv, "s:h:p:l:e:d?")) != -1){
 			switch(oc)
 			{
 			  case 'h':
@@ -136,13 +172,13 @@ int main(int argc,char* argv[])
 				remote_port = atoi(optarg);
 				break;
 			  case 'l':
-				port = atoi(optarg);
+				local_port = atoi(optarg);
 				break;
 			  case 'e':
 				level = atoi(optarg);
 				break;
 			  case 'd':
-				daemon(1,0);
+				isdaemon = true;
 				break;
 			  case '?':
 			  default:
@@ -151,15 +187,23 @@ int main(int argc,char* argv[])
 			}
 		}
 	}
-	printf("[process] 0.0.0.0:%d    ---->    %s:%d	with log level %d\n",port,remote_host.c_str(),remote_port,level);
 
+	if(isdaemon){
+		::daemon(1,0);
+		level = 0;
+	}
+
+	/* 己经正式决定要执行下去了。 */
+	signal(SIGUSR1, mudis_sig_leave);
 	signal(SIGPIPE, SIG_IGN);
+
+
 
 	int listener = ::socket(AF_INET,SOCK_STREAM, IPPROTO_IP);
 	sockaddr_in addr = {0};
 	addr.sin_addr.s_addr = htonl(INADDR_ANY);
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(port);
+	addr.sin_port = htons(local_port);
 	int opt = 1;
 	setsockopt(listener,SOL_SOCKET,SO_REUSEADDR,&opt,sizeof(opt));
 	if(::bind(listener,(const sockaddr*)&addr,sizeof(addr))){
@@ -167,18 +211,46 @@ int main(int argc,char* argv[])
 		printf("error:%s\n",strerror(errno));
 		return 1;
 	}
+
+
+	pollfd pfd;
+	pfd.fd = listener;
+	pfd.events = POLLIN;
 	listen(listener,5);
 
-	while(true){
-		sockaddr_in addr;
-		socklen_t addr_size = sizeof(addr);
-		int acceptfd = ::accept(listener,(sockaddr*)&addr,&addr_size);
-		if(acceptfd >= 0){
-			pthread_t thread;
-			if(pthread_create(&thread,NULL,(void* (*)(void*))thread_task,(void*)acceptfd) == 0){
-				pthread_detach(thread);
+	while(threadcount > 0){
+		if(leave){
+			if(listener >= 0){
+				__sync_sub_and_fetch(&threadcount,1);
+				::close(listener);
+				listener = -1;
 			}
 		}
+
+		if(listener == -1){
+			usleep(100000);
+			continue;
+		}
+
+		int ret = ::poll(&pfd,1,100);
+		if(ret > 0 && pfd.revents&POLLIN){
+			sockaddr_in addr;
+			socklen_t addr_size = sizeof(addr);
+			int acceptfd = ::accept(listener,(sockaddr*)&addr,&addr_size);
+			if(acceptfd >= 0){
+				pthread_t thread;
+				if(pthread_create(&thread,NULL,(void* (*)(void*))thread_task,(void*)acceptfd) == 0){
+					pthread_detach(thread);
+				}else{
+					::close(acceptfd);
+				}
+			}
+		}else if(ret < 0){
+			usleep(100000);
+		}
+	}
+	if(listener >= 0){
+		::close(listener);
 	}
 	return 0;
 }

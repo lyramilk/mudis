@@ -241,7 +241,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 				delete (admin_master*)p;
 			}
 
-			virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg)
+			virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::array& gcfg)
 			{
 				return true;
 			}

@@ -5,6 +5,7 @@
 #include <libmilk/netproxy.h>
 #include <stdlib.h>
 #include "strategy.h"
+#include <libmilk/testing.h>
 
 
 namespace lyramilk{ namespace mudis
@@ -77,6 +78,7 @@ namespace lyramilk{ namespace mudis
 	{
 		redis_proxy_strategy* strategy;
 		redis_proxy_group* group;
+		lyramilk::debug::nsecdiff nd;
 	  public:
 		redis_proxy();
 	  	virtual ~redis_proxy();

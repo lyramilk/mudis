@@ -371,16 +371,13 @@ label_bodys:
 		lyramilk::data::var ret;
 
 		lyramilk::data::stringstream iss;
-		while(c.check_read(20)){
+		if(c.check_read(20)){
 			char buff[4096];
 			int r = c.read(buff,4096);
 			if(r > 0){
 				iss.write(buff,r);
-			}else{
-				break;
 			}
 		}
-
 		bool suc = parse(iss,ret,&err);
 
 		if(suc) return ret;
@@ -405,13 +402,11 @@ label_bodys:
 		lyramilk::data::strings ret;
 
 		lyramilk::data::stringstream iss;
-		while(c.check_read(20)){
+		if(c.check_read(20)){
 			char buff[4096];
 			int r = c.read(buff,4096);
 			if(r > 0){
 				iss.write(buff,r);
-			}else{
-				break;
 			}
 		}
 
@@ -433,6 +428,7 @@ label_bodys:
 	{
 		strategy = nullptr;
 		group = nullptr;
+		nd.mark();
 	}
 
 	redis_proxy::~redis_proxy()
@@ -441,6 +437,7 @@ label_bodys:
 			group->destory(strategy);
 		}
 	}
+
 
 	bool redis_proxy::onrequest(const char* cache, int size,int* bytesused, lyramilk::data::ostream& os)
 	{
@@ -498,7 +495,6 @@ label_bodys:
 					return redis_proxy::rs_error;
 				}
 			}
-
 
 			if(stype == st_ssdb){
 				lyramilk::data::string err = "error";

@@ -64,7 +64,7 @@ namespace lyramilk{ namespace proc
 			fclose(fp);
 		}
 
-		return nullptr;
+		return false;
 	}
 
 }}

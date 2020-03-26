@@ -80,14 +80,12 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			delete (order_master*)p;
 		}
 
-		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg)
+		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::array& upstreams)
 		{
 			name = groupname;
-			lyramilk::data::map conf = gcfg;
-			lyramilk::data::array& upstreams = conf["upstream"];
-			for(lyramilk::data::array::iterator it = upstreams.begin();it != upstreams.end();++it){
+			for(lyramilk::data::array::const_iterator it = upstreams.begin();it != upstreams.end();++it){
 				if(it->type() != lyramilk::data::var::t_map) continue;
-				lyramilk::data::map& m = *it;
+				lyramilk::data::map m = *it;
 				lyramilk::data::string host = m["host"].str();
 				unsigned short port = m["port"];
 				lyramilk::data::string password = m["password"].str();

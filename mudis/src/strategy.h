@@ -100,7 +100,7 @@ namespace lyramilk{ namespace mudis
 		redis_proxy_group();
 	  	virtual ~redis_proxy_group();
 
-		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::map& cfg,const lyramilk::data::map& gcfg) = 0;
+		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::array& cfg) = 0;
 		virtual redis_proxy_strategy* create(bool is_ssdb) = 0;
 		virtual void destory(redis_proxy_strategy* p) = 0;
 
@@ -132,7 +132,7 @@ namespace lyramilk{ namespace mudis
 	  	static bool check_redis(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
 
 		virtual redis_proxy_group* get_by_groupname(const lyramilk::data::string& groupname);
-		virtual bool load_config(const lyramilk::data::map& cfg);
+		virtual bool load_group_config(const lyramilk::data::string& groupname,const lyramilk::data::string& strategy,const lyramilk::data::array& cfg);
 		virtual redis_upstream_server* add_redis_server(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
 		virtual bool check_upstreams();
 		virtual bool check_groups();

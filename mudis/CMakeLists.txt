@@ -1,6 +1,6 @@
 ﻿#定义工程名及版本
 project(mudis)
-set(version 1.0.12)
+set(version 1.0.13)
 set(soversion 1.0)
 
 
@@ -26,8 +26,8 @@ include(UsePkgConfig)
 enable_testing()
 
 #定制编译选项
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall")
-set(CMAKE_LD_FLAGS "${CMAKE_LD_FLAGS} -g -Wall")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -Wall -fPIC")
+set(CMAKE_LD_FLAGS "${CMAKE_LD_FLAGS} -g -Wall -fPIC")
 
 if(release)
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O4 -DNDEBUG -Wall ")
@@ -56,11 +56,11 @@ if(UNIX)
 	include_directories(src/sni)
 endif()
 
-list(APPEND LIBS_DEPENDS -ldl)
+list(APPEND LIBS_DEPENDS -ldl -lrt)
 
 ## 搜索可选的外部依赖
 if(UNIX)
-	pkg_check_modules(LIBMILK libmilk)
+	pkg_check_modules(LIBMILK libmilk_minimal_static)
 endif()
 
 if(LIBMILK_FOUND)

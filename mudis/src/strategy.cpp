@@ -183,32 +183,48 @@ namespace lyramilk{ namespace mudis
 		return nullptr;
 	}
 
-	bool redis_strategy_master::load_config(const lyramilk::data::map& cfg)
+	bool redis_strategy_master::load_group_config(const lyramilk::data::string& groupname,const lyramilk::data::string& strategy,const lyramilk::data::array& cfg)
 	{
+		/*
 		lyramilk::data::map conf = cfg;
-		lyramilk::data::map& proxys = conf["proxy"];
 
+		lyramilk::data::var& cfg_of_proxy = conf["proxy"];
 
-		lyramilk::data::map::iterator it = proxys.begin();
-		for(;it!=proxys.end();++it){
-			lyramilk::data::string strategy = it->second["strategy"];
-			lyramilk::data::string groupname = it->first;
+		if(cfg_of_proxy.type() == lyramilk::data::var::t_map){
+			lyramilk::data::map& proxys = cfg_of_proxy;
 
-			redis_proxy_group* g = create(strategy);
-			if(g){
-				if(!g->load_config(groupname,cfg,it->second)){
-					lyramilk::klog(lyramilk::log::error,"mudis.load_config") << D("加载配置组%s(%s)失败",groupname.c_str(),strategy.c_str()) << std::endl;
-					return false;
+			lyramilk::data::map::iterator it = proxys.begin();
+			for(;it!=proxys.end();++it){
+				lyramilk::data::string strategy = it->second["strategy"];
+				lyramilk::data::string groupname = it->first;
+
+				redis_proxy_group* g = create(strategy);
+				if(g){
+					if(!g->load_config(groupname,cfg,it->second)){
+						lyramilk::klog(lyramilk::log::error,"mudis.load_config") << D("加载配置组%s(%s)失败",groupname.c_str(),strategy.c_str()) << std::endl;
+						return false;
+					}
+
+					lyramilk::klog(lyramilk::log::trace,"mudis.load_config") << D("加载配置组%s(%s)完成",groupname.c_str(),strategy.c_str()) << std::endl;
+
+					glist[groupname] = g;
+				}else{
+					lyramilk::klog(lyramilk::log::warning,"mudis.load_config") << D("为%s加载策略失败：%s",groupname.c_str(),strategy.c_str()) << std::endl;
 				}
-
-				lyramilk::klog(lyramilk::log::trace,"mudis.load_config") << D("加载配置组%s(%s)完成",groupname.c_str(),strategy.c_str()) << std::endl;
-
-				glist[groupname] = g;
-			}else{
-				lyramilk::klog(lyramilk::log::warning,"mudis.load_config") << D("为%s加载策略失败：%s",groupname.c_str(),strategy.c_str()) << std::endl;
 			}
+		}*/
+		redis_proxy_group* g = create(strategy);
+		if(g){
+			if(!g->load_config(groupname,cfg)){
+				lyramilk::klog(lyramilk::log::error,"mudis.load_config") << D("加载配置组%s(%s)失败",groupname.c_str(),strategy.c_str()) << std::endl;
+				return false;
+			}
+			lyramilk::klog(lyramilk::log::trace,"mudis.load_config") << D("加载配置组%s(%s)完成",groupname.c_str(),strategy.c_str()) << std::endl;
+			glist[groupname] = g;
+			return true;
 		}
-		return true;
+		lyramilk::klog(lyramilk::log::warning,"mudis.load_config") << D("为%s加载策略失败：%s",groupname.c_str(),strategy.c_str()) << std::endl;
+		return false;
 	}
 
 	redis_upstream_server* redis_strategy_master::add_redis_server(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password)
