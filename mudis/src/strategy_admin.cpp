@@ -59,14 +59,14 @@ namespace lyramilk{ namespace mudis { namespace strategy
 					if(is_ssdb){
 						os << "2\nok\n";
 
-						std::map<lyramilk::data::string,redis_upstream_server>::iterator it = redis_strategy_master::instance()->rlist.begin();
+						std::map<lyramilk::data::string,redis_upstream_server*>::iterator it = redis_strategy_master::instance()->rlist.begin();
 						for(;it!=redis_strategy_master::instance()->rlist.end();++it){
 
 							lyramilk::data::ostringstream oss;
-							oss << it->second.host << ":" << it->second.port << " ";
-							if(it->second.online){
+							oss << it->second->host << ":" << it->second->port << " ";
+							if(it->second->online){
 								oss << "online";
-								oss << " " << it->second.alive;
+								oss << " " << it->second->alive;
 							}else{
 								oss << "down -1";
 							}
@@ -82,14 +82,14 @@ namespace lyramilk{ namespace mudis { namespace strategy
 						std::size_t redis_count = redis_strategy_master::instance()->rlist.size();
 						os << "*" << redis_count << "\r\n";
 
-						std::map<lyramilk::data::string,redis_upstream_server>::iterator it = redis_strategy_master::instance()->rlist.begin();
+						std::map<lyramilk::data::string,redis_upstream_server*>::iterator it = redis_strategy_master::instance()->rlist.begin();
 						for(;it!=redis_strategy_master::instance()->rlist.end();++it){
 
 							lyramilk::data::ostringstream oss;
-							oss << it->second.host << ":" << it->second.port << " ";
-							if(it->second.online){
+							oss << it->second->host << ":" << it->second->port << " ";
+							if(it->second->online){
 								oss << "online";
-								oss << " " << it->second.alive;
+								oss << " " << it->second->alive;
 							}else{
 								oss << "down -1";
 							}
@@ -116,14 +116,14 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 					if(module == "status" || module == ""){
 						sinfo.push_back("# Status");
-						std::map<lyramilk::data::string,redis_upstream_server>::const_iterator it = redis_strategy_master::instance()->rlist.begin();
+						std::map<lyramilk::data::string,redis_upstream_server*>::const_iterator it = redis_strategy_master::instance()->rlist.begin();
 						for(;it!=redis_strategy_master::instance()->rlist.end();++it){
 
 							lyramilk::data::ostringstream oss;
-							oss << "  " << it->second.host << ":" << it->second.port << " ";
-							if(it->second.online){
+							oss << "  " << it->second->host << ":" << it->second->port << " ";
+							if(it->second->online){
 								oss << "up ";
-								oss << it->second.online;
+								oss << it->second->online;
 							}else{
 								oss << "down -1";
 							}

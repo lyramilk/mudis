@@ -171,6 +171,8 @@ int main(int argc,const char* argv[])
 
 	/* 解析配置 */
 	{
+		std::map<lyramilk::data::string,int> norepeatmap;
+
 		lyramilk::data::var & vproxy_cfg = vconf["proxy"];
 		if(vproxy_cfg.type() == lyramilk::data::var::t_map){
 			lyramilk::data::map& mproxy_cfg = vproxy_cfg; 
@@ -180,6 +182,12 @@ int main(int argc,const char* argv[])
 					return -2;
 				}
 				lyramilk::data::string group = mproxy_cfg_it->first;
+
+				if(++norepeatmap[group] > 1){
+					lyramilk::klog(lyramilk::log::error,"mudis.main") << D("加载配置文件%s出现错误：发现重复的组%s",configure_file.c_str(),group.c_str()) << std::endl;
+					return -2;
+				}
+
 				lyramilk::data::map& mgroup_cfg = mproxy_cfg_it->second;
 
 				if(mgroup_cfg["strategy"].type() != lyramilk::data::var::t_str){
@@ -346,6 +354,7 @@ int main(int argc,const char* argv[])
 
 
 	lyramilk::io::aiopoll_safe pool(threads_count);
+	pool.active();
 
 
 	/* 开始服务 */
@@ -388,13 +397,16 @@ int main(int argc,const char* argv[])
 	time_t tlast12 = 0;
 	time_t tlast2 = 0;
 
+	lyramilk::mudis::redis_strategy_master::instance()->check_groups();
+	lyramilk::mudis::redis_strategy_master::instance()->check_groups_changes();
+
 	while(pool.get_fd_count() > 0){
 		lyramilk::mudis::redis_strategy_master::instance()->check_clients();
 		if(lyramilk::mudis::redis_strategy_master::instance()->leave){
 			if(servers.size() > 0){
 				for(std::vector<redis_proxy_server*>::iterator it = servers.begin();it != servers.end();++it){
 					redis_proxy_server* ins = *it;
-					pool.remove_on_thread(0,ins);
+					pool.remove(ins);
 					delete ins;
 					ins = nullptr;
 				}
@@ -423,11 +435,12 @@ int main(int argc,const char* argv[])
 		}
 		time_t tnow = time(nullptr);
 		if(tnow >= tlast2 + 2){
+			lyramilk::mudis::redis_strategy_master::instance()->check_groups();
 			lyramilk::mudis::redis_strategy_master::instance()->check_upstreams();
 			tlast2 = tnow;
 		}
 
-		lyramilk::mudis::redis_strategy_master::instance()->check_groups();
+		lyramilk::mudis::redis_strategy_master::instance()->check_groups_changes();
 		
 		usleep(delay_msec * 10);
 	}

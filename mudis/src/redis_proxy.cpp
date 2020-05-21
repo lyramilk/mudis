@@ -221,15 +221,16 @@ namespace lyramilk{ namespace mudis
 						slen.push_back(c);
 					}
 
-					lyramilk::data::var len = slen;
-					int ilen = len;
-					v.type(lyramilk::data::var::t_array);
+					char* p;
+					long long ilen = strtoll(slen.c_str(),&p,10);
+					if(ilen < 0) return true;
 
+					v.type(lyramilk::data::var::t_array);
 					lyramilk::data::array& ar = v;
 					ar.resize(ilen);
 
 					lyramilk::data::var* e = ar.data();
-					for(int i=0;i<ilen;++i,++e){
+					for(long long i=0;i<ilen;++i,++e){
 						parse(is,*e,onerr);
 					}
 					return true;
@@ -243,9 +244,12 @@ namespace lyramilk{ namespace mudis
 						if(c == '\n') break;
 						slen.push_back(c);
 					}
-					if(slen == "-1") return true;
-					lyramilk::data::var len = slen;
-					int ilen = len;
+
+					char* p;
+					long long ilen = strtoll(slen.c_str(),&p,10);
+					if(ilen < 0) return true;
+
+					v.type(lyramilk::data::var::t_array);
 					lyramilk::data::string buf;
 					buf.resize(ilen);
 					is.read((char*)buf.c_str(),ilen);

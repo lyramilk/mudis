@@ -26,6 +26,7 @@ namespace lyramilk{ namespace mudis
 		online = false;
 		alive = 0;
 		payload = 0;
+		nocheck = false;
 	}
 
 	redis_upstream_server::~redis_upstream_server()
@@ -53,6 +54,51 @@ namespace lyramilk{ namespace mudis
 		__sync_fetch_and_sub(&payload,1);
 	}
 
+	bool redis_upstream_server::check()
+	{
+		lyramilk::netio::client c;
+		if(!host.empty() && c.open(host,port)){
+			if(password.empty()){
+				//不登录的话也先ping一下，防假死
+				lyramilk::data::array cmd;
+				cmd.push_back("ping");
+				bool err = false;
+
+				lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
+
+				if(r == "PONG"){
+					return true;
+				}
+				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
+			}else{
+				lyramilk::data::array cmd;
+				cmd.push_back("auth");
+				cmd.push_back(password);
+				bool err = false;
+
+				lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
+
+				if(r == "OK"){
+					return true;
+				}
+				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
+			}
+		}
+
+		return false;
+	}
+
+	// redis_upstream
+	redis_upstream::redis_upstream(redis_upstream_server* p,int w){
+		srv = p;
+		weight = w;
+	}
+
+	redis_upstream::~redis_upstream()
+	{
+	}
+
+
 	// redis_proxy_strategy
 	redis_proxy_strategy::redis_proxy_strategy()
 	{
@@ -76,11 +122,14 @@ namespace lyramilk{ namespace mudis
 	}
 
 
+	void redis_proxy_group::check()
+	{
+	}
+
 	void redis_proxy_group::update()
 	{
 		changed = true;
 	}
-
 
 	void redis_proxy_group::reflush()
 	{
@@ -89,8 +138,6 @@ namespace lyramilk{ namespace mudis
 			changed = false;
 		}
 	}
-
-	
 
 	bool redis_proxy_group::connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream)
 	{
@@ -185,34 +232,6 @@ namespace lyramilk{ namespace mudis
 
 	bool redis_strategy_master::load_group_config(const lyramilk::data::string& groupname,const lyramilk::data::string& strategy,const lyramilk::data::array& cfg)
 	{
-		/*
-		lyramilk::data::map conf = cfg;
-
-		lyramilk::data::var& cfg_of_proxy = conf["proxy"];
-
-		if(cfg_of_proxy.type() == lyramilk::data::var::t_map){
-			lyramilk::data::map& proxys = cfg_of_proxy;
-
-			lyramilk::data::map::iterator it = proxys.begin();
-			for(;it!=proxys.end();++it){
-				lyramilk::data::string strategy = it->second["strategy"];
-				lyramilk::data::string groupname = it->first;
-
-				redis_proxy_group* g = create(strategy);
-				if(g){
-					if(!g->load_config(groupname,cfg,it->second)){
-						lyramilk::klog(lyramilk::log::error,"mudis.load_config") << D("加载配置组%s(%s)失败",groupname.c_str(),strategy.c_str()) << std::endl;
-						return false;
-					}
-
-					lyramilk::klog(lyramilk::log::trace,"mudis.load_config") << D("加载配置组%s(%s)完成",groupname.c_str(),strategy.c_str()) << std::endl;
-
-					glist[groupname] = g;
-				}else{
-					lyramilk::klog(lyramilk::log::warning,"mudis.load_config") << D("为%s加载策略失败：%s",groupname.c_str(),strategy.c_str()) << std::endl;
-				}
-			}
-		}*/
 		redis_proxy_group* g = create(strategy);
 		if(g){
 			if(!g->load_config(groupname,cfg)){
@@ -230,11 +249,12 @@ namespace lyramilk{ namespace mudis
 	redis_upstream_server* redis_strategy_master::add_redis_server(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password)
 	{
 		lyramilk::data::string key = hash(host,port,password);
-		redis_upstream_server &s = rlist[key];
+		redis_upstream_server* s = new redis_upstream_server;
+		rlist[key] = s;
 
-		s.host = host;
-		s.port = port;
-		s.password = password;
+		s->host = host;
+		s->port = port;
+		s->password = password;
 
 
 		hostent* h = gethostbyname(host.c_str());
@@ -249,68 +269,76 @@ namespace lyramilk{ namespace mudis
 			return nullptr;
 		}
 
-		memset(&s.saddr,0,sizeof(s.saddr));
-		s.saddr.sin_addr.s_addr = inaddr->s_addr;
-		s.saddr.sin_family = AF_INET;
-		s.saddr.sin_port = htons(port);
+		memset(&s->saddr,0,sizeof(s->saddr));
+		s->saddr.sin_addr.s_addr = inaddr->s_addr;
+		s->saddr.sin_family = AF_INET;
+		s->saddr.sin_port = htons(port);
 
-		return &s;
+		return s;
 	}
 
+	redis_upstream_server* redis_strategy_master::add_redis_server(const lyramilk::data::string& groupname)
+	{
+		lyramilk::data::string key = hash(groupname,0,"<noname>");
+		redis_upstream_server* s = new redis_upstream_server;
+		rlist[key] = s;
+		s->host = "";
+		s->online = false;
+		/*
+		s->host = host;
+		s->port = port;
+		s->password = password;
+
+		/*
+		hostent* h = gethostbyname(host.c_str());
+		if(h == nullptr){
+			lyramilk::klog(lyramilk::log::error,"mudis.redis_strategy_master.add_redis_server") << lyramilk::kdict("获取%s的IP地址失败：%p,%s",host.c_str(),h,strerror(errno)) << std::endl;
+			return nullptr;
+		}
+
+		in_addr* inaddr = (in_addr*)h->h_addr;
+		if(inaddr == nullptr){
+			lyramilk::klog(lyramilk::log::error,"mudis.redis_strategy_master.add_redis_server") << lyramilk::kdict("获取%s的IP地址失败：%p,%s",host.c_str(),inaddr,strerror(errno)) << std::endl;
+			return nullptr;
+		}
+
+		memset(&s->saddr,0,sizeof(s->saddr));
+		s->saddr.sin_addr.s_addr = inaddr->s_addr;
+		s->saddr.sin_family = AF_INET;
+		s->saddr.sin_port = htons(port);
+		*/
+		return s;
+	}
 
 
 
 	//	redis_strategy_master
-	bool redis_strategy_master::check_redis(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password)
-	{
-		lyramilk::netio::client c;
-		if(c.open(host,port)){
-			if(password.empty()){
-				//不登录的话也先ping一下，防假死
-				lyramilk::data::array cmd;
-				cmd.push_back("ping");
-				bool err = false;
-
-				lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
-
-				if(r == "PONG"){
-					return true;
-				}
-				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
-			}else{
-				lyramilk::data::array cmd;
-				cmd.push_back("auth");
-				cmd.push_back(password);
-				bool err = false;
-
-				lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
-
-				if(r == "OK"){
-					return true;
-				}
-				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
-		}
-		}
-
-		return false;
-	}
-
-
 	bool redis_strategy_master::check_upstreams()
 	{
-		for(std::map<lyramilk::data::string,redis_upstream_server>::iterator it =  rlist.begin();it!=rlist.end() && !leave;++it){
-			bool online = check_redis(it->second.host,it->second.port,it->second.password);
-			it->second.enable(online);
-			if(online){
-				++ it->second.alive;
-			}else{
-				it->second.alive = 0;
+		for(std::map<lyramilk::data::string,redis_upstream_server*>::iterator it =  rlist.begin();it!=rlist.end() && !leave;++it){
+			if(!it->second->nocheck){
+				bool online = it->second->check();
+				it->second->enable(online);
+				if(online){
+					++ it->second->alive;
+				}else{
+					it->second->alive = 0;
+				}
 			}
 		}
 		return true;
 	}
 
 	bool redis_strategy_master::check_groups()
+	{
+		for(std::map<lyramilk::data::string,redis_proxy_group*>::iterator it = glist.begin();it!=glist.end();++it){
+			redis_proxy_group* g = it->second;
+			g->check();
+		}
+		return true;
+	}
+
+	bool redis_strategy_master::check_groups_changes()
 	{
 		for(std::map<lyramilk::data::string,redis_proxy_group*>::iterator it = glist.begin();it!=glist.end();++it){
 			redis_proxy_group* g = it->second;

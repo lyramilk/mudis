@@ -105,7 +105,6 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 		virtual redis_proxy_strategy* create(bool is_ssdb)
 		{
-			unsigned int diligent = rand() % upstreams.size();
 			for(unsigned int i=diligent;i < upstreams.size() + diligent;++i){
 				int idx = diligent % upstreams.size();
 				redis_upstream_server* pserver = upstreams[idx];

@@ -18,35 +18,58 @@ namespace lyramilk{ namespace mudis
 	class redis_proxy;
 	class redis_proxy_group;
 
-	struct redis_upstream_server
+	class redis_upstream_server
 	{
+	  public:
 		lyramilk::data::string host;
 		lyramilk::data::string password;
 		unsigned short port;
 		bool online;
 		int alive;
 		int payload;
+		bool nocheck;
 
 		std::vector<redis_proxy_group*> group;
 		sockaddr_in saddr;
 
 		redis_upstream_server();
-		~redis_upstream_server();
+		virtual ~redis_upstream_server();
 
 		void enable(bool isenable);
 		void add_ref();
 		void release();
+		virtual bool check();
 	};
 
-	struct redis_upstream
+	struct redis_sentinel_info
 	{
+		lyramilk::data::string host;
+		lyramilk::data::string password;
+		unsigned short port;
+		lyramilk::data::string name;
+		lyramilk::data::string auth;
+	};
+
+
+/*
+	class redis_upstream_server_with_redis_sentinel:public redis_upstream_server
+	{
+	  public:
+		lyramilk::threading::mutex_rw lock;
+		std::vector<redis_sentinel_info> redis_sentinel_list;
+		virtual bool check();
+	};
+*/
+
+
+	class redis_upstream
+	{
+	  public:
 		redis_upstream_server* srv;
 		int weight;
 
-		redis_upstream(redis_upstream_server* p,int w){
-			srv = p;
-			weight = w;
-		}
+		redis_upstream(redis_upstream_server* p,int w);
+		virtual ~redis_upstream();
 	};
 
 	struct  redis_session_info
@@ -104,6 +127,7 @@ namespace lyramilk{ namespace mudis
 		virtual redis_proxy_strategy* create(bool is_ssdb) = 0;
 		virtual void destory(redis_proxy_strategy* p) = 0;
 
+		virtual void check();
 		virtual void update();
 		virtual void reflush();
 
@@ -116,7 +140,7 @@ namespace lyramilk{ namespace mudis
 		friend class strategy::admin;
 		friend class redis_proxy;
 		std::map<lyramilk::data::string,redis_proxy_group*> glist;	//	groupname->group
-		std::map<lyramilk::data::string,redis_upstream_server> rlist;	//	redishash->redisinfo
+		std::map<lyramilk::data::string,redis_upstream_server*> rlist;	//	redishash->redisinfo
 	  public:
 		lyramilk::threading::lockfreequeue<redis_session_cmd> queue;
 		bool leave;
@@ -129,13 +153,15 @@ namespace lyramilk{ namespace mudis
 		static redis_strategy_master* instance();
 
 	  	static lyramilk::data::string hash(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
-	  	static bool check_redis(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
 
 		virtual redis_proxy_group* get_by_groupname(const lyramilk::data::string& groupname);
 		virtual bool load_group_config(const lyramilk::data::string& groupname,const lyramilk::data::string& strategy,const lyramilk::data::array& cfg);
 		virtual redis_upstream_server* add_redis_server(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
+		virtual redis_upstream_server* add_redis_server(const lyramilk::data::string& groupname);
+		//virtual redis_upstream_server_with_redis_sentinel* add_redis_server(const lyramilk::data::string& groupname,const std::vector<redis_sentinel_info>& redis_sentinel_list);
 		virtual bool check_upstreams();
 		virtual bool check_groups();
+		virtual bool check_groups_changes();
 		virtual bool check_clients();
 	};
 }}

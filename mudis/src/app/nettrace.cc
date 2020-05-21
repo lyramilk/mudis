@@ -13,9 +13,9 @@
 #include <sys/shm.h>
 #include <netinet/tcp.h>
 
-std::string remote_host = "127.0.0.1";
-unsigned short remote_port = 80;
-unsigned short local_port = 8080;
+std::string remote_host;
+unsigned short remote_port = -1;
+unsigned short local_port = -1;
 
 int level = 0;
 int leave = false;
@@ -186,6 +186,11 @@ int main(int argc,char* argv[])
 				return 0;
 			}
 		}
+	}
+
+	if(remote_host.empty() || remote_port == -1 || local_port == -1){
+		useage(selfname);
+		return 0;
 	}
 
 	if(isdaemon){
