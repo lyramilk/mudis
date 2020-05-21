@@ -123,7 +123,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 							oss << "  " << it->second->host << ":" << it->second->port << " ";
 							if(it->second->online){
 								oss << "up ";
-								oss << it->second->online;
+								oss << it->second->alive;
 							}else{
 								oss << "down -1";
 							}
