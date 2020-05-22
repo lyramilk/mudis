@@ -56,7 +56,6 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 	class order_master:public redis_proxy_group
 	{
-		lyramilk::data::string name;
 		lyramilk::threading::mutex_rw lock;
 		std::vector<redis_upstream> upstreams;
 		std::vector<redis_upstream*> activelist;
@@ -82,7 +81,6 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::array& upstreams)
 		{
-			name = groupname;
 			for(lyramilk::data::array::const_iterator it = upstreams.begin();it != upstreams.end();++it){
 				if(it->type() != lyramilk::data::var::t_map) continue;
 				lyramilk::data::map m = *it;

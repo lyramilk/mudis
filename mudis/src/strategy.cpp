@@ -139,6 +139,11 @@ namespace lyramilk{ namespace mudis
 		}
 	}
 
+	lyramilk::data::string redis_proxy_group::name()
+	{
+		return groupname;
+	}
+
 	bool redis_proxy_group::connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream)
 	{
 		if(endpoint->open(upstream->saddr,200)){
@@ -234,6 +239,7 @@ namespace lyramilk{ namespace mudis
 	{
 		redis_proxy_group* g = create(strategy);
 		if(g){
+			g->groupname = groupname;
 			if(!g->load_config(groupname,cfg)){
 				lyramilk::klog(lyramilk::log::error,"mudis.load_config") << D("加载配置组%s(%s)失败",groupname.c_str(),strategy.c_str()) << std::endl;
 				return false;
@@ -249,8 +255,13 @@ namespace lyramilk{ namespace mudis
 	redis_upstream_server* redis_strategy_master::add_redis_server(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password)
 	{
 		lyramilk::data::string key = hash(host,port,password);
-		redis_upstream_server* s = new redis_upstream_server;
-		rlist[key] = s;
+
+		std::map<lyramilk::data::string,redis_upstream_server*>::iterator it = rlist.find(key);
+
+		redis_upstream_server*& s = rlist[key];
+		if(s == nullptr){
+			s = new redis_upstream_server;
+		}
 
 		s->host = host;
 		s->port = port;
@@ -280,33 +291,14 @@ namespace lyramilk{ namespace mudis
 	redis_upstream_server* redis_strategy_master::add_redis_server(const lyramilk::data::string& groupname)
 	{
 		lyramilk::data::string key = hash(groupname,0,"<noname>");
-		redis_upstream_server* s = new redis_upstream_server;
-		rlist[key] = s;
+
+		redis_upstream_server*& s = rlist[key];
+		if(s == nullptr){
+			s = new redis_upstream_server;
+		}
+
 		s->host = "";
 		s->online = false;
-		/*
-		s->host = host;
-		s->port = port;
-		s->password = password;
-
-		/*
-		hostent* h = gethostbyname(host.c_str());
-		if(h == nullptr){
-			lyramilk::klog(lyramilk::log::error,"mudis.redis_strategy_master.add_redis_server") << lyramilk::kdict("获取%s的IP地址失败：%p,%s",host.c_str(),h,strerror(errno)) << std::endl;
-			return nullptr;
-		}
-
-		in_addr* inaddr = (in_addr*)h->h_addr;
-		if(inaddr == nullptr){
-			lyramilk::klog(lyramilk::log::error,"mudis.redis_strategy_master.add_redis_server") << lyramilk::kdict("获取%s的IP地址失败：%p,%s",host.c_str(),inaddr,strerror(errno)) << std::endl;
-			return nullptr;
-		}
-
-		memset(&s->saddr,0,sizeof(s->saddr));
-		s->saddr.sin_addr.s_addr = inaddr->s_addr;
-		s->saddr.sin_family = AF_INET;
-		s->saddr.sin_port = htons(port);
-		*/
 		return s;
 	}
 

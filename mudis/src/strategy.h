@@ -116,20 +116,23 @@ namespace lyramilk{ namespace mudis
 
 	class redis_proxy_group
 	{
+		friend class redis_strategy_master;
 		bool changed;
+		lyramilk::data::string groupname;
 	  protected:
 		virtual void onlistchange() = 0;
+		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::array& cfg) = 0;
 	  public:
 		redis_proxy_group();
 	  	virtual ~redis_proxy_group();
 
-		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::array& cfg) = 0;
 		virtual redis_proxy_strategy* create(bool is_ssdb) = 0;
 		virtual void destory(redis_proxy_strategy* p) = 0;
 
 		virtual void check();
 		virtual void update();
 		virtual void reflush();
+		virtual lyramilk::data::string name();
 
 		static bool connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream);
 	};
