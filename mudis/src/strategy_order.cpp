@@ -110,9 +110,20 @@ namespace lyramilk{ namespace mudis { namespace strategy
 					}
 				}
 			}
-			lyramilk::threading::mutex_sync _(lock.w());
-			activelist.swap(tmpactivelist);
-			backuplist.swap(tmpbackuplist);
+
+			if(tmpactivelist.empty() && tmpbackuplist.empty()){
+				if(activelist.empty() && backuplist.empty()){
+				}else{
+					lyramilk::klog(lyramilk::log::error,"mudis.order.onlistchange") << lyramilk::kdict("组[%s]己经没有活动的链接",name().c_str()) << std::endl;
+					lyramilk::threading::mutex_sync _(lock.w());
+					activelist.swap(tmpactivelist);
+					backuplist.swap(tmpbackuplist);
+				}
+			}else{
+				lyramilk::threading::mutex_sync _(lock.w());
+				activelist.swap(tmpactivelist);
+				backuplist.swap(tmpbackuplist);
+			}
 		}
 
 		virtual redis_proxy_strategy* create(bool is_ssdb)

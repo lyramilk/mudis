@@ -145,11 +145,7 @@ namespace lyramilk{ namespace mudis
 		std::map<lyramilk::data::string,redis_proxy_group*> glist;	//	groupname->group
 		std::map<lyramilk::data::string,redis_upstream_server*> rlist;	//	redishash->redisinfo
 	  public:
-		lyramilk::threading::lockfreequeue<redis_session_cmd> queue;
 		bool leave;
-
-		std::map<lyramilk::data::string,std::set<redis_session_info> > clients;
-
 
 		redis_strategy_master();
 	  	virtual ~redis_strategy_master();
@@ -165,7 +161,6 @@ namespace lyramilk{ namespace mudis
 		virtual bool check_upstreams();
 		virtual bool check_groups();
 		virtual bool check_groups_changes();
-		virtual bool check_clients();
 	};
 }}
 #endif

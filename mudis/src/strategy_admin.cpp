@@ -132,7 +132,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 							sinfo.push_back(oss.str());
 						}
 					}
-
+/*
 					if(module == "groups" || module == ""){
 						sinfo.push_back("# Groups");
 						std::map<lyramilk::data::string,std::set<redis_session_info> >::const_iterator it = redis_strategy_master::instance()->clients.begin();
@@ -161,7 +161,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 								}
 							}
 						}
-					}
+					}*/
 
 					sinfo.push_back("");
 

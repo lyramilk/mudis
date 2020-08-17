@@ -321,7 +321,7 @@ int main(int argc,const char* argv[])
 
 				}
 			}
-		} while(EEXIST == errno && pf != nullptr && operate == "reload" && times > 0);
+		} while((EEXIST == errno || EAGAIN == errno) && pf == nullptr && operate == "reload" && times > 0);
 
 		if(pf == NULL || !pf->good()){
 			log(lyramilk::log::error) << D("创建PID文件错误：%s",strerror(errno)) << std::endl;
@@ -401,7 +401,7 @@ int main(int argc,const char* argv[])
 	lyramilk::mudis::redis_strategy_master::instance()->check_groups_changes();
 
 	while(pool.get_fd_count() > 0){
-		lyramilk::mudis::redis_strategy_master::instance()->check_clients();
+		//lyramilk::mudis::redis_strategy_master::instance()->check_clients();
 		if(lyramilk::mudis::redis_strategy_master::instance()->leave){
 			if(servers.size() > 0){
 				for(std::vector<redis_proxy_server*>::iterator it = servers.begin();it != servers.end();++it){
@@ -421,7 +421,7 @@ int main(int argc,const char* argv[])
 					tlast12 = tnow;
 
 					log(lyramilk::log::debug,__FUNCTION__) << D("总链接数：") << pool.get_fd_count() << std::endl;
-
+/*
 					std::map<lyramilk::data::string,std::set<lyramilk::mudis::redis_session_info> >& clients = lyramilk::mudis::redis_strategy_master::instance()->clients;
 					std::map<lyramilk::data::string,std::set<lyramilk::mudis::redis_session_info> >::const_iterator it = clients.begin();
 
@@ -429,7 +429,7 @@ int main(int argc,const char* argv[])
 						if(it->second.size() > 0){
 							log(lyramilk::log::debug,__FUNCTION__) << D("分组会话数：") << it->first << "  " << it->second.size() << std::endl;
 						}
-					}
+					}*/
 				}
 			}
 		}

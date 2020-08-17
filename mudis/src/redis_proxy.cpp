@@ -375,7 +375,7 @@ label_bodys:
 		lyramilk::data::var ret;
 
 		lyramilk::data::stringstream iss;
-		if(c.check_read(20)){
+		if(c.check_read(80)){
 			char buff[4096];
 			int r = c.read(buff,4096);
 			if(r > 0){
@@ -406,7 +406,7 @@ label_bodys:
 		lyramilk::data::strings ret;
 
 		lyramilk::data::stringstream iss;
-		if(c.check_read(20)){
+		if(c.check_read(80)){
 			char buff[4096];
 			int r = c.read(buff,4096);
 			if(r > 0){
@@ -484,16 +484,18 @@ label_bodys:
 				strategy = group->create(stype == st_ssdb);
 				if(strategy){
 					if(strategy->onauth(os,this)){
+						/*
 						lyramilk::netio::netaddress client_addr = dest();
 						redis_session_cmd ri;
 						ri.client_host = client_addr.ip_str();
-						ri.client_port = client_addr.port;
+						ri.client_port = client_addr.port();
 						ri.group = password;
 						ri.cmdtype = rct_add;
 
 						strategy->ri = ri;
 						strategy->ri.cmdtype = rct_del;
-						redis_strategy_master::instance()->queue.push(ri);
+						redis_strategy_master::instance()->queue.try_push(ri);
+						*/
 						return redis_proxy::rs_ok;
 					}
 					return redis_proxy::rs_error;

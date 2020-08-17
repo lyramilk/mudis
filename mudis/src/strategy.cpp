@@ -1,6 +1,7 @@
 #include "strategy.h"
 #include "redis_proxy.h"
 #include <libmilk/dict.h>
+#include <libmilk/testing.h>
 
 #include <netdb.h>
 #include <errno.h>
@@ -57,7 +58,7 @@ namespace lyramilk{ namespace mudis
 	bool redis_upstream_server::check()
 	{
 		lyramilk::netio::client c;
-		if(!host.empty() && c.open(host,port)){
+		if(!host.empty() && c.open(host,port,80)){
 			if(password.empty()){
 				//不登录的话也先ping一下，防假死
 				lyramilk::data::array cmd;
@@ -106,9 +107,10 @@ namespace lyramilk{ namespace mudis
 
 	redis_proxy_strategy::~redis_proxy_strategy()
 	{
+		/*
 		if(!ri.client_host.empty()){
 			redis_strategy_master::instance()->queue.push(ri);
-		}
+		}*/
 	}
 
 	// redis_proxy_group
@@ -339,6 +341,7 @@ namespace lyramilk{ namespace mudis
 		return true;
 	}
 
+/*
 	bool redis_strategy_master::check_clients()
 	{
 		redis_session_cmd ri;
@@ -352,5 +355,5 @@ namespace lyramilk{ namespace mudis
 		}
 
 		return true;
-	}
+	}*/
 }}
