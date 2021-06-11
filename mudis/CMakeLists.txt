@@ -1,6 +1,6 @@
 ﻿#定义工程名及版本
 project(mudis)
-set(version 1.0.17)
+set(version 1.0.18)
 set(soversion 1.0)
 
 
@@ -56,6 +56,8 @@ if(UNIX)
 	include_directories(src/sni)
 endif()
 
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
+
 list(APPEND LIBS_DEPENDS -ldl -lrt)
 
 ## 搜索可选的外部依赖
@@ -99,15 +101,18 @@ foreach(v ${CONFIG_MACROS})
 endforeach()
 
 #修改配置文件
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in ${CMAKE_CURRENT_SOURCE_DIR}/src/config.h)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/include/config.h)
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pkg/mudis.spec.in ${CMAKE_CURRENT_SOURCE_DIR}/pkg/mudis.spec)
 
 
 #目标动态库
-#add_library(${PROJECT_NAME} SHARED ${src_cpps} ${src_hs})
-add_library(${PROJECT_NAME} STATIC ${src_cpps} ${src_hs})
+add_library(${PROJECT_NAME} SHARED ${src_cpps} ${src_hs})
+#add_library(${PROJECT_NAME} STATIC ${src_cpps} ${src_hs})
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}")
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${version} SOVERSION ${soversion})
+
+#拷贝文件
+file(COPY ${src_hs} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include/)
 
 #对libmilk的依赖
 if(NOT ${LIBMILK_CFLAGS})

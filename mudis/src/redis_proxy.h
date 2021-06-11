@@ -77,8 +77,7 @@ namespace lyramilk{ namespace mudis
 	class redis_proxy:public lyramilk::netio::aioproxysession,public redis_session
 	{
 		redis_proxy_strategy* strategy;
-		redis_proxy_group* group;
-		lyramilk::debug::nsecdiff nd;
+		redis_strategy* group;
 	  public:
 		redis_proxy();
 	  	virtual ~redis_proxy();

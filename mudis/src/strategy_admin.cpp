@@ -220,7 +220,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 		};
 
 
-		class admin_master:public redis_proxy_group
+		class admin_master:public redis_strategy
 		{
 		  public:
 			admin_master()
@@ -231,12 +231,12 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			{
 			}
 	
-			static redis_proxy_group* ctr(void*)
+			static redis_strategy* ctr(void*)
 			{
 				return new admin_master;
 			}
 	
-			static void dtr(redis_proxy_group* p)
+			static void dtr(redis_strategy* p)
 			{
 				delete (admin_master*)p;
 			}
@@ -252,7 +252,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 				
 			}
 
-			virtual redis_proxy_strategy* create(bool is_ssdb)
+			virtual redis_proxy_strategy* create(bool is_ssdb,redis_proxy* proxy)
 			{
 				return new admin(is_ssdb);
 			}

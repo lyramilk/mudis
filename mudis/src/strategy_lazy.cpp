@@ -54,7 +54,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 	};
 
 
-	class lazy_master:public redis_proxy_group
+	class lazy_master:public redis_strategy
 	{
 		lyramilk::threading::mutex_rw lock;
 		std::vector<redis_upstream_server*> upstreams;
@@ -69,12 +69,12 @@ namespace lyramilk{ namespace mudis { namespace strategy
 		{
 		}
 
-		static redis_proxy_group* ctr(void*)
+		static redis_strategy* ctr(void*)
 		{
 			return new lazy_master;
 		}
 
-		static void dtr(redis_proxy_group* p)
+		static void dtr(redis_strategy* p)
 		{
 			delete (lazy_master*)p;
 		}
@@ -101,15 +101,15 @@ namespace lyramilk{ namespace mudis { namespace strategy
 		{
 		}
 
-		virtual redis_proxy_strategy* create(bool is_ssdb)
+		virtual redis_proxy_strategy* create(bool is_ssdb,redis_proxy* proxy)
 		{
 			for(unsigned int i=diligent;i < upstreams.size() + diligent;++i){
 				int idx = diligent % upstreams.size();
 				redis_upstream_server* pserver = upstreams[idx];
 				if(!pserver->online) continue;
 				
-				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-				if(connect_upstream(is_ssdb,endpoint,pserver)){
+				redis_upstream_connector* endpoint = lyramilk::netio::aiosession::__tbuilder<redis_upstream_connector>();
+				if(connect_upstream(is_ssdb,endpoint,pserver,proxy)){
 					return new lazy(pserver,endpoint,is_ssdb);
 				}
 				//尝试链接失败
@@ -121,8 +121,8 @@ namespace lyramilk{ namespace mudis { namespace strategy
 				redis_upstream_server* pserver = upstreams[idx];
 				if(!pserver->online) continue;
 
-				lyramilk::netio::aioproxysession_speedy* endpoint = lyramilk::netio::aiosession::__tbuilder<lyramilk::netio::aioproxysession_speedy>();
-				if(connect_upstream(is_ssdb,endpoint,pserver)){
+				redis_upstream_connector* endpoint = lyramilk::netio::aiosession::__tbuilder<redis_upstream_connector>();
+				if(connect_upstream(is_ssdb,endpoint,pserver,proxy)){
 					return new lazy(pserver,endpoint,is_ssdb);
 				}
 				//尝试链接失败

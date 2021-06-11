@@ -38,8 +38,8 @@ namespace lyramilk{ namespace mudis
 	{
 		if(isenable != online){
 			online = isenable;
-			for(std::vector<redis_proxy_group*>::iterator it = group.begin();it!=group.end();++it){
-				redis_proxy_group* p = *it;
+			for(std::vector<redis_strategy*>::iterator it = group.begin();it!=group.end();++it){
+				redis_strategy* p = *it;
 				p->update();
 			}
 		}
@@ -58,7 +58,7 @@ namespace lyramilk{ namespace mudis
 	bool redis_upstream_server::check()
 	{
 		lyramilk::netio::client c;
-		if(!host.empty() && c.open(host,port,80)){
+		if(!host.empty() && c.open(host,port,2000)){
 			if(password.empty()){
 				//不登录的话也先ping一下，防假死
 				lyramilk::data::array cmd;
@@ -89,6 +89,110 @@ namespace lyramilk{ namespace mudis
 		return false;
 	}
 
+	// redis_upstream_connector
+	redis_upstream_connector::redis_upstream_connector()
+	{
+		upstream = nullptr;
+		is_ssdb = false;
+	}
+
+	redis_upstream_connector::~redis_upstream_connector()
+	{
+	}
+
+	bool redis_upstream_connector::pend_redis_or_ssdb_cmd(lyramilk::data::ostream& ss,const lyramilk::data::array& cmd)
+	{
+		if(is_ssdb){
+			lyramilk::data::array::const_iterator it = cmd.begin();
+			for(;it!=cmd.end();++it){
+				lyramilk::data::string str = it->str();
+				ss << str.size() << "\n";
+				ss << str << "\n";
+			}
+			ss << "\n";
+		}else{
+			lyramilk::data::array::const_iterator it = cmd.begin();
+			ss << "*" << cmd.size() << "\r\n";
+			for(;it!=cmd.end();++it){
+				lyramilk::data::string str = it->str();
+				ss << "$" << str.size() << "\r\n";
+				ss << str << "\r\n";
+			}
+		}
+		return true;
+	}
+
+	bool redis_upstream_connector::oninit(lyramilk::data::ostream& os)
+	{
+		redis_upstream_server* rinfo = upstream;
+		if(rinfo->password.empty()){
+			//不登录的话也先ping一下，防假死
+			lyramilk::data::array cmd;
+			cmd.push_back("ping");
+			pend_redis_or_ssdb_cmd(os,cmd);
+		}else{
+			lyramilk::data::array cmd;
+			cmd.push_back("auth");
+			cmd.push_back(rinfo->password);
+			pend_redis_or_ssdb_cmd(os,cmd);
+		}
+
+		return true;
+	}
+
+	void redis_upstream_connector::onfinally(lyramilk::data::ostream& os)
+	{
+	}
+
+
+	bool redis_upstream_connector::onclientauthok()
+	{
+		if(proxy->start_proxy()){
+			if(is_ssdb){
+				proxy->write("2\nok\n1\n1\n\n",10);
+			}else{
+				proxy->write("+OK\r\n",5);
+			}
+			return true;
+		}
+		return false;
+	}
+
+	bool redis_upstream_connector::onrequest(const char* cache, int size, int* sizeused, lyramilk::data::ostream& os)
+	{
+		redis_upstream_server* rinfo = upstream;
+		if(rinfo->password.empty()){
+			if(is_ssdb){
+			}else{
+				if(memcmp(cache,"+PONG\r\n",size) == 0){
+					start_proxy();
+					*sizeused = size;
+					return onclientauthok();
+				}
+				return false;
+			}
+		}else{
+			if(is_ssdb){
+				if(memcmp(cache,"2\nok\n1\n1\n\n",size) == 0){
+					start_proxy();
+					*sizeused = size;
+					return onclientauthok();
+				}
+				return false;
+			}else{
+				if(memcmp(cache,"+OK\r\n",size) == 0){
+					start_proxy();
+					*sizeused = size;
+					return onclientauthok();
+				}
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+
 	// redis_upstream
 	redis_upstream::redis_upstream(redis_upstream_server* p,int w){
 		srv = p;
@@ -98,7 +202,6 @@ namespace lyramilk{ namespace mudis
 	redis_upstream::~redis_upstream()
 	{
 	}
-
 
 	// redis_proxy_strategy
 	redis_proxy_strategy::redis_proxy_strategy()
@@ -113,27 +216,27 @@ namespace lyramilk{ namespace mudis
 		}*/
 	}
 
-	// redis_proxy_group
-	redis_proxy_group::redis_proxy_group()
+	// redis_strategy
+	redis_strategy::redis_strategy()
 	{
 		changed = true;
 	}
 
-	redis_proxy_group::~redis_proxy_group()
+	redis_strategy::~redis_strategy()
 	{
 	}
 
 
-	void redis_proxy_group::check()
+	void redis_strategy::check()
 	{
 	}
 
-	void redis_proxy_group::update()
+	void redis_strategy::update()
 	{
 		changed = true;
 	}
 
-	void redis_proxy_group::reflush()
+	void redis_strategy::reflush()
 	{
 		if(changed){
 			onlistchange();
@@ -141,66 +244,19 @@ namespace lyramilk{ namespace mudis
 		}
 	}
 
-	lyramilk::data::string redis_proxy_group::name()
+	lyramilk::data::string redis_strategy::name()
 	{
 		return groupname;
 	}
 
-	bool redis_proxy_group::connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream)
+	bool redis_strategy::connect_upstream(bool is_ssdb,redis_upstream_connector* endpoint,redis_upstream_server* upstream,redis_proxy* proxy)
 	{
-		if(endpoint->open(upstream->saddr,200)){
-			redis_upstream_server* rinfo = upstream;
-			if(rinfo->password.empty()){
-				//不登录的话也先ping一下，防假死
-				lyramilk::data::array cmd;
-				cmd.push_back("ping");
-				bool err = false;
-
-				if(is_ssdb){
-					lyramilk::netio::client c;
-					c.fd(endpoint->fd());
-					lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
-					c.fd(-1);
-
-					if(r.size() > 0 && r[0] == "ok"){
-						return true;
-					}
-				}else{
-					lyramilk::netio::client c;
-					c.fd(endpoint->fd());
-					lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
-					c.fd(-1);
-					if(r == "PONG"){
-						return true;
-					}
-				}
-
-			}else{
-				lyramilk::data::array cmd;
-				cmd.push_back("auth");
-				cmd.push_back(rinfo->password);
-				bool err = false;
-
-				if(is_ssdb){
-					lyramilk::netio::client c;
-					c.fd(endpoint->fd());
-					lyramilk::data::strings r = redis_session::exec_ssdb(c,cmd,&err);
-					c.fd(-1);
-					if(r.size() > 0 && r[0] == "ok"){
-						return true;
-					}
-				}else{
-					lyramilk::netio::client c;
-					c.fd(endpoint->fd());
-					lyramilk::data::var r = redis_session::exec_redis(c,cmd,&err);
-					c.fd(-1);
-					if(r == "OK"){
-						return true;
-					}
-				}
-			}
+		endpoint->upstream = upstream;
+		endpoint->is_ssdb = is_ssdb;
+		endpoint->proxy = proxy;
+		if(endpoint->open(upstream->saddr)){
+			return proxy->tie(endpoint);
 		}
-
 		return false;
 	}
 
@@ -228,9 +284,9 @@ namespace lyramilk{ namespace mudis
 		return oss.str();
 	}
 
-	redis_proxy_group* redis_strategy_master::get_by_groupname(const lyramilk::data::string& groupname)
+	redis_strategy* redis_strategy_master::get_by_groupname(const lyramilk::data::string& groupname)
 	{
-		std::map<lyramilk::data::string,redis_proxy_group*>::const_iterator it = glist.find(groupname);
+		std::map<lyramilk::data::string,redis_strategy*>::const_iterator it = glist.find(groupname);
 		if(it!=glist.end()){
 			return it->second;
 		}
@@ -239,7 +295,7 @@ namespace lyramilk{ namespace mudis
 
 	bool redis_strategy_master::load_group_config(const lyramilk::data::string& groupname,const lyramilk::data::string& strategy,const lyramilk::data::array& cfg)
 	{
-		redis_proxy_group* g = create(strategy);
+		redis_strategy* g = create(strategy);
 		if(g){
 			g->groupname = groupname;
 			if(!g->load_config(groupname,cfg)){
@@ -325,8 +381,8 @@ namespace lyramilk{ namespace mudis
 
 	bool redis_strategy_master::check_groups()
 	{
-		for(std::map<lyramilk::data::string,redis_proxy_group*>::iterator it = glist.begin();it!=glist.end();++it){
-			redis_proxy_group* g = it->second;
+		for(std::map<lyramilk::data::string,redis_strategy*>::iterator it = glist.begin();it!=glist.end();++it){
+			redis_strategy* g = it->second;
 			g->check();
 		}
 		return true;
@@ -334,8 +390,8 @@ namespace lyramilk{ namespace mudis
 
 	bool redis_strategy_master::check_groups_changes()
 	{
-		for(std::map<lyramilk::data::string,redis_proxy_group*>::iterator it = glist.begin();it!=glist.end();++it){
-			redis_proxy_group* g = it->second;
+		for(std::map<lyramilk::data::string,redis_strategy*>::iterator it = glist.begin();it!=glist.end();++it){
+			redis_strategy* g = it->second;
 			g->reflush();
 		}
 		return true;

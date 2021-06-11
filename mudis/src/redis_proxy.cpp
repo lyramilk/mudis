@@ -1,6 +1,9 @@
 #include "redis_proxy.h"
 #include "config.h"
 #include <libmilk/stringutil.h>
+#include <libmilk/dict.h>
+#include <string.h>
+#include <errno.h>
 
 namespace lyramilk{ namespace mudis
 {
@@ -375,12 +378,17 @@ label_bodys:
 		lyramilk::data::var ret;
 
 		lyramilk::data::stringstream iss;
-		if(c.check_read(80)){
+		if(c.check_read(800)){
 			char buff[4096];
 			int r = c.read(buff,4096);
 			if(r > 0){
 				iss.write(buff,r);
 			}
+		}else{
+			lyramilk::netio::netaddress addr = c.dest();
+			//lyramilk::klog(lyramilk::log::error,"mudis.redis_session::exec_redis") << lyramilk::kdict("链接%s:%d超时",addr.host().c_str(),addr.port()) << std::endl;
+			if(onerr) *onerr = true;
+			return strerror(errno);
 		}
 		bool suc = parse(iss,ret,&err);
 
@@ -406,12 +414,19 @@ label_bodys:
 		lyramilk::data::strings ret;
 
 		lyramilk::data::stringstream iss;
-		if(c.check_read(80)){
+		if(c.check_read(800)){
 			char buff[4096];
 			int r = c.read(buff,4096);
 			if(r > 0){
 				iss.write(buff,r);
 			}
+		}else{
+			lyramilk::netio::netaddress addr = c.dest();
+			//lyramilk::klog(lyramilk::log::error,"mudis.redis_session::exec_ssdb") << lyramilk::kdict("链接%s:%d超时",addr.host().c_str(),addr.port()) << std::endl;
+			if(onerr) *onerr = true;
+			ret.clear();
+			ret.push_back(strerror(errno));
+			return ret;
 		}
 
 		bool suc = parse_ssdb(iss,ret);
@@ -432,7 +447,6 @@ label_bodys:
 	{
 		strategy = nullptr;
 		group = nullptr;
-		nd.mark();
 	}
 
 	redis_proxy::~redis_proxy()
@@ -481,25 +495,10 @@ label_bodys:
 			lyramilk::data::string password = cmd[1].str();
 			group = redis_strategy_master::instance()->get_by_groupname(password);
 			if(group){
-				strategy = group->create(stype == st_ssdb);
-				if(strategy){
-					if(strategy->onauth(os,this)){
-						/*
-						lyramilk::netio::netaddress client_addr = dest();
-						redis_session_cmd ri;
-						ri.client_host = client_addr.ip_str();
-						ri.client_port = client_addr.port();
-						ri.group = password;
-						ri.cmdtype = rct_add;
-
-						strategy->ri = ri;
-						strategy->ri.cmdtype = rct_del;
-						redis_strategy_master::instance()->queue.try_push(ri);
-						*/
-						return redis_proxy::rs_ok;
-					}
-					return redis_proxy::rs_error;
-				}
+				//lyramilk::netio::netaddress addr = dest();
+				//lyramilk::klog(lyramilk::log::debug,"mudis.redis_proxy::notify_cmd") << lyramilk::kdict("%s:%d连接组[%s]",addr.host().c_str(),addr.port(),password.c_str()) << std::endl;
+				strategy = group->create(stype == st_ssdb,this);
+				return redis_proxy::rs_ok;
 			}
 
 			if(stype == st_ssdb){

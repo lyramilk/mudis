@@ -16,7 +16,7 @@ namespace lyramilk{ namespace mudis
 	};
 
 	class redis_proxy;
-	class redis_proxy_group;
+	class redis_strategy;
 
 	class redis_upstream_server
 	{
@@ -29,7 +29,7 @@ namespace lyramilk{ namespace mudis
 		int payload;
 		bool nocheck;
 
-		std::vector<redis_proxy_group*> group;
+		std::vector<redis_strategy*> group;
 		sockaddr_in saddr;
 
 		redis_upstream_server();
@@ -49,18 +49,6 @@ namespace lyramilk{ namespace mudis
 		lyramilk::data::string name;
 		lyramilk::data::string auth;
 	};
-
-
-/*
-	class redis_upstream_server_with_redis_sentinel:public redis_upstream_server
-	{
-	  public:
-		lyramilk::threading::mutex_rw lock;
-		std::vector<redis_sentinel_info> redis_sentinel_list;
-		virtual bool check();
-	};
-*/
-
 
 	class redis_upstream
 	{
@@ -114,7 +102,26 @@ namespace lyramilk{ namespace mudis
 	};
 
 
-	class redis_proxy_group
+	class redis_upstream_connector:public lyramilk::netio::aioproxysession_speedy_async
+	{
+		virtual bool oninit(lyramilk::data::ostream& os);
+		virtual void onfinally(lyramilk::data::ostream& os);
+		virtual bool onrequest(const char* cache, int size, int* sizeused, lyramilk::data::ostream& os);
+		virtual bool onclientauthok();
+	  public:
+		bool is_ssdb;
+		redis_upstream_server* upstream;
+		redis_proxy* proxy;
+
+		bool pend_redis_or_ssdb_cmd(lyramilk::data::ostream& ss,const lyramilk::data::array& cmd);
+
+
+		redis_upstream_connector();
+	  	virtual ~redis_upstream_connector();
+
+	};
+
+	class redis_strategy
 	{
 		friend class redis_strategy_master;
 		bool changed;
@@ -123,10 +130,10 @@ namespace lyramilk{ namespace mudis
 		virtual void onlistchange() = 0;
 		virtual bool load_config(const lyramilk::data::string& groupname,const lyramilk::data::array& cfg) = 0;
 	  public:
-		redis_proxy_group();
-	  	virtual ~redis_proxy_group();
+		redis_strategy();
+	  	virtual ~redis_strategy();
 
-		virtual redis_proxy_strategy* create(bool is_ssdb) = 0;
+		virtual redis_proxy_strategy* create(bool is_ssdb,redis_proxy* proxy) = 0;
 		virtual void destory(redis_proxy_strategy* p) = 0;
 
 		virtual void check();
@@ -134,15 +141,15 @@ namespace lyramilk{ namespace mudis
 		virtual void reflush();
 		virtual lyramilk::data::string name();
 
-		static bool connect_upstream(bool is_ssdb,lyramilk::netio::aioproxysession_speedy* endpoint,redis_upstream_server* upstream);
+		static bool connect_upstream(bool is_ssdb,redis_upstream_connector* endpoint,redis_upstream_server* upstream,redis_proxy* proxy);
 	};
 
 
-	class redis_strategy_master:public lyramilk::util::factory<redis_proxy_group>
+	class redis_strategy_master:public lyramilk::util::factory<redis_strategy>
 	{
 		friend class strategy::admin;
 		friend class redis_proxy;
-		std::map<lyramilk::data::string,redis_proxy_group*> glist;	//	groupname->group
+		std::map<lyramilk::data::string,redis_strategy*> glist;	//	groupname->group
 		std::map<lyramilk::data::string,redis_upstream_server*> rlist;	//	redishash->redisinfo
 	  public:
 		bool leave;
@@ -153,7 +160,7 @@ namespace lyramilk{ namespace mudis
 
 	  	static lyramilk::data::string hash(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
 
-		virtual redis_proxy_group* get_by_groupname(const lyramilk::data::string& groupname);
+		virtual redis_strategy* get_by_groupname(const lyramilk::data::string& groupname);
 		virtual bool load_group_config(const lyramilk::data::string& groupname,const lyramilk::data::string& strategy,const lyramilk::data::array& cfg);
 		virtual redis_upstream_server* add_redis_server(const lyramilk::data::string& host,unsigned short port,const lyramilk::data::string& password);
 		virtual redis_upstream_server* add_redis_server(const lyramilk::data::string& groupname);
