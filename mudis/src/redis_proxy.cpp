@@ -361,6 +361,11 @@ label_bodys:
 
 	lyramilk::data::var redis_session::exec_redis(lyramilk::netio::client& c,const lyramilk::data::array& cmd,bool* onerr)
 	{
+
+		lyramilk::debug::nsecdiff nd;
+		nd.mark();
+
+
 		lyramilk::data::array::const_iterator it = cmd.begin();
 
 		{
@@ -378,7 +383,7 @@ label_bodys:
 		lyramilk::data::var ret;
 
 		lyramilk::data::stringstream iss;
-		if(c.check_read(800)){
+		if(c.check_read(200)){
 			char buff[4096];
 			int r = c.read(buff,4096);
 			if(r > 0){
@@ -386,7 +391,7 @@ label_bodys:
 			}
 		}else{
 			lyramilk::netio::netaddress addr = c.dest();
-			//lyramilk::klog(lyramilk::log::error,"mudis.redis_session::exec_redis") << lyramilk::kdict("链接%s:%d超时",addr.host().c_str(),addr.port()) << std::endl;
+			lyramilk::klog(lyramilk::log::error,"mudis.redis_session::exec_redis") << lyramilk::kdict("链接%s:%d超时",addr.host().c_str(),addr.port()) << std::endl;
 			if(onerr) *onerr = true;
 			return strerror(errno);
 		}
@@ -498,7 +503,18 @@ label_bodys:
 				//lyramilk::netio::netaddress addr = dest();
 				//lyramilk::klog(lyramilk::log::debug,"mudis.redis_proxy::notify_cmd") << lyramilk::kdict("%s:%d连接组[%s]",addr.host().c_str(),addr.port(),password.c_str()) << std::endl;
 				strategy = group->create(stype == st_ssdb,this);
-				return redis_proxy::rs_ok;
+
+				if(strategy){
+					if(!strategy->is_async_auth()){
+						if(strategy->onauth(os,this)){
+							return redis_proxy::rs_ok;
+						}
+						group->destory(strategy);
+						return redis_proxy::rs_error;
+					}
+					this->flag = 0;
+					return redis_proxy::rs_ok;
+				}
 			}
 
 			if(stype == st_ssdb){

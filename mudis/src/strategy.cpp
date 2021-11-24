@@ -57,6 +57,9 @@ namespace lyramilk{ namespace mudis
 
 	bool redis_upstream_server::check()
 	{
+		lyramilk::debug::nsecdiff nd;
+		nd.mark();
+
 		lyramilk::netio::client c;
 		if(!host.empty() && c.open(host,port,2000)){
 			if(password.empty()){
@@ -70,7 +73,8 @@ namespace lyramilk{ namespace mudis
 				if(r == "PONG"){
 					return true;
 				}
-				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
+				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s 耗时%.3f",host.c_str(),port,r.str().c_str(),double(nd.diff())/1000000.0f) << std::endl;
+				return false;
 			}else{
 				lyramilk::data::array cmd;
 				cmd.push_back("auth");
@@ -82,10 +86,12 @@ namespace lyramilk{ namespace mudis
 				if(r == "OK"){
 					return true;
 				}
-				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s",host.c_str(),port,r.str().c_str()) << std::endl;
+				lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s 耗时%.3f",host.c_str(),port,r.str().c_str(),double(nd.diff())/1000000.0f) << std::endl;
+				return false;
 			}
 		}
 
+		lyramilk::klog(lyramilk::log::error,"mudis.check_redis") << lyramilk::kdict("检查%s:%u失败：%s 耗时%.3f",host.c_str(),port,strerror(errno),double(nd.diff())/1000000.0f) << std::endl;
 		return false;
 	}
 
@@ -147,7 +153,7 @@ namespace lyramilk{ namespace mudis
 
 	bool redis_upstream_connector::onclientauthok()
 	{
-		if(proxy->start_proxy()){
+		if(proxy->start_async_redirect(true)){
 			if(is_ssdb){
 				proxy->write("2\nok\n1\n1\n\n",10);
 			}else{
@@ -165,7 +171,7 @@ namespace lyramilk{ namespace mudis
 			if(is_ssdb){
 			}else{
 				if(memcmp(cache,"+PONG\r\n",size) == 0){
-					start_proxy();
+					enable_async_redirect(true);
 					*sizeused = size;
 					return onclientauthok();
 				}
@@ -174,14 +180,14 @@ namespace lyramilk{ namespace mudis
 		}else{
 			if(is_ssdb){
 				if(memcmp(cache,"2\nok\n1\n1\n\n",size) == 0){
-					start_proxy();
+					enable_async_redirect(true);
 					*sizeused = size;
 					return onclientauthok();
 				}
 				return false;
 			}else{
 				if(memcmp(cache,"+OK\r\n",size) == 0){
-					start_proxy();
+					enable_async_redirect(true);
 					*sizeused = size;
 					return onclientauthok();
 				}
@@ -214,6 +220,11 @@ namespace lyramilk{ namespace mudis
 		if(!ri.client_host.empty()){
 			redis_strategy_master::instance()->queue.push(ri);
 		}*/
+	}
+
+	bool redis_proxy_strategy::is_async_auth()
+	{
+		return true;
 	}
 
 	// redis_strategy
@@ -254,8 +265,8 @@ namespace lyramilk{ namespace mudis
 		endpoint->upstream = upstream;
 		endpoint->is_ssdb = is_ssdb;
 		endpoint->proxy = proxy;
-		if(endpoint->open(upstream->saddr)){
-			return proxy->tie(endpoint);
+		if(endpoint->async_open(upstream->saddr)){
+			return proxy->async_redirect_connect(endpoint);
 		}
 		return false;
 	}

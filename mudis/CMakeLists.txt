@@ -1,6 +1,6 @@
 ﻿#定义工程名及版本
 project(mudis)
-set(version 1.0.18)
+set(version 1.0.19)
 set(soversion 1.0)
 
 
@@ -106,8 +106,8 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pkg/mudis.spec.in ${CMAKE_CURRENT_SOU
 
 
 #目标动态库
-add_library(${PROJECT_NAME} SHARED ${src_cpps} ${src_hs})
-#add_library(${PROJECT_NAME} STATIC ${src_cpps} ${src_hs})
+#add_library(${PROJECT_NAME} SHARED ${src_cpps} ${src_hs})
+add_library(${PROJECT_NAME} STATIC ${src_cpps} ${src_hs})
 set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}")
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${version} SOVERSION ${soversion})
 
@@ -115,7 +115,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${version} SOVERSION ${
 file(COPY ${src_hs} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include/)
 
 #对libmilk的依赖
-if(NOT ${LIBMILK_CFLAGS})
+if(NOT LIBMILK_FOUND)
 	add_custom_target(milk COMMAND make -C /usr/local/src/libmilk/build)
 	add_dependencies(${PROJECT_NAME} milk)
 endif()

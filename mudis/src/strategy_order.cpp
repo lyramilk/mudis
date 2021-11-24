@@ -18,10 +18,10 @@ namespace lyramilk{ namespace mudis { namespace strategy
 	class order:public redis_proxy_strategy
 	{
 		redis_upstream_server* rinfo;
-		lyramilk::netio::aioproxysession_speedy* endpoint;
+		lyramilk::netio::aioproxysession_connector* endpoint;
 		bool is_ssdb;
 	  public:
-		order(redis_upstream_server* ri,lyramilk::netio::aioproxysession_speedy* endpoint,bool is_ssdb)
+		order(redis_upstream_server* ri,lyramilk::netio::aioproxysession_connector* endpoint,bool is_ssdb)
 		{
 			rinfo = ri;
 			rinfo->add_ref();
@@ -36,7 +36,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 
 		virtual bool onauth(lyramilk::data::ostream& os,redis_proxy* proxy)
 		{
-			if(proxy->combine(endpoint)){
+			if(proxy->async_redirect_to(endpoint)){
 				if(is_ssdb){
 					os << "2\nok\n1\n1\n\n";
 				}else{

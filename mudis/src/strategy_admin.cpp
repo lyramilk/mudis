@@ -31,6 +31,11 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			{
 			}
 
+			virtual bool is_async_auth()
+			{
+				return false;
+			}
+
 			virtual bool onauth(lyramilk::data::ostream& os,redis_proxy* proxy)
 			{
 				if(is_ssdb){
@@ -40,6 +45,7 @@ namespace lyramilk{ namespace mudis { namespace strategy
 				}
 				return true;
 			}
+
 			virtual bool onrequest(const char* cache,int size,int* bytesused,lyramilk::data::ostream& os)
 			{
 				result_status r = parsing(cache,size,bytesused,&os);
@@ -52,7 +58,6 @@ namespace lyramilk{ namespace mudis { namespace strategy
 			virtual redis_session::result_status notify_cmd(const lyramilk::data::var::array& cmd, void* userdata)
 			{
 				std::ostream& os = *(std::ostream*)userdata;
-
 				lyramilk::data::string scmd = lyramilk::data::lower_case(cmd[0].str());
 				if(scmd == "list"){
 

@@ -97,6 +97,8 @@ namespace lyramilk{ namespace mudis
 		redis_proxy_strategy();
 	  	virtual ~redis_proxy_strategy();
 
+		virtual bool is_async_auth();
+
 	  	virtual bool onauth(lyramilk::data::ostream& os,redis_proxy* proxy) = 0;
 	  	virtual bool onrequest(const char* cache,int size,int* bytesused,lyramilk::data::ostream& os) = 0;
 	};
