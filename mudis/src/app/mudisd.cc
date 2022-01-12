@@ -324,7 +324,7 @@ int main(int argc,const char* argv[])
 		} while((EEXIST == errno || EAGAIN == errno) && pf == nullptr && operate == "reload" && times > 0);
 
 		if(pf == NULL || !pf->good()){
-			log(lyramilk::log::error) << D("创建PID文件错误：%s",strerror(errno)) << std::endl;
+			log(lyramilk::log::error) << D("创建PID文件%s错误：%s",pidfilename.c_str(),strerror(errno)) << std::endl;
 			return -1;
 		}
 	}
