@@ -61,9 +61,7 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/include)
 list(APPEND LIBS_DEPENDS -ldl -lrt)
 
 ## 搜索可选的外部依赖
-if(UNIX)
-	pkg_check_modules(LIBMILK libmilk_minimal_static)
-endif()
+pkg_check_modules(LIBMILK libmilk)
 
 if(LIBMILK_FOUND)
 	list(APPEND BUILD_DEPENDS libmilk-devel)
@@ -73,11 +71,7 @@ if(LIBMILK_FOUND)
 	list(APPEND CONFIG_MACROS LIBMILK_FOUND)
 endif()
 
-if(UNIX)
-	set(LIBRARIES -lpthread)
-else()
-	message(FATAL_ERROR "mudis is works on Linux only!!!")
-endif()
+set(LIBRARIES -lpthread)
 
 #根据外部依赖的存在与定义一些宏
 foreach(v ${BUILD_DEPENDS})
@@ -113,12 +107,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${version} SOVERSION ${
 
 #拷贝文件
 file(COPY ${src_hs} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include/)
-
-#对libmilk的依赖
-if(NOT LIBMILK_FOUND)
-	add_custom_target(milk COMMAND make -C /usr/local/src/libmilk/build)
-	add_dependencies(${PROJECT_NAME} milk)
-endif()
 
 
 #链接库

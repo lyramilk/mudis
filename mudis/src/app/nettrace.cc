@@ -21,6 +21,8 @@ int level = 0;
 int leave = false;
 int threadcount = 1;
 
+in_addr	inaddr;
+
 class ref_thread
 {
   public:
@@ -52,23 +54,6 @@ void* thread_task(void* p)
 		setsockopt(client_fd, IPPROTO_TCP, TCP_KEEPCNT, &cnt, sizeof(cnt));
 	}
 
-	sockaddr_in client_addr = {0};
-	socklen_t client_addr_len = sizeof(client_addr);
-	getpeername(client_fd, (sockaddr*)&client_addr,&client_addr_len );
-
-
-	hostent* h = gethostbyname(remote_host.c_str());
-	if(h == NULL){
-		printf("error:%s\n",strerror(errno));
-		return NULL;
-	}
-
-	in_addr* inaddr = (in_addr*)h->h_addr;
-	if(inaddr == NULL){
-		printf("error:%s\n",strerror(errno));
-		return NULL;
-	}
-
 	int server_fd = ::socket(AF_INET,SOCK_STREAM, IPPROTO_IP);
 	if(server_fd < 0){
 		printf("error:%s\n",strerror(errno));
@@ -76,10 +61,13 @@ void* thread_task(void* p)
 	}
 
 	sockaddr_in server_addr = {0};
-	server_addr.sin_addr.s_addr = inaddr->s_addr;
+	server_addr.sin_addr.s_addr = inaddr.s_addr;
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_port = htons(remote_port);
 
+	sockaddr_in client_addr = {0};
+	socklen_t client_addr_len = sizeof(client_addr);
+	getpeername(client_fd, (sockaddr*)&client_addr,&client_addr_len );
 
 
 
@@ -201,6 +189,24 @@ int main(int argc,char* argv[])
 	/* 己经正式决定要执行下去了。 */
 	signal(SIGUSR1, mudis_sig_leave);
 	signal(SIGPIPE, SIG_IGN);
+
+
+
+
+
+	hostent* h = gethostbyname(remote_host.c_str());
+	if(h == NULL){
+		printf("error:%s\n",strerror(errno));
+		return 1;
+	}
+
+	in_addr* _inaddr = (in_addr*)h->h_addr;
+	if(_inaddr == NULL){
+		printf("error:%s\n",strerror(errno));
+		return 1;
+	}
+
+	inaddr = *_inaddr;
 
 
 
