@@ -45,5 +45,4 @@ endif()
 #定义主程序
 add_executable(mudisd src/app/mudisd.cc)
 install(TARGETS mudisd DESTINATION bin)
-#target_link_libraries(mudisd PUBLIC -Wl,--whole-archive milk ${PROJECT_NAME} -Wl,--no-whole-archive ${LIBS_DEPENDS})
-target_link_libraries(mudisd PUBLIC milk ${PROJECT_NAME} ${LIBS_DEPENDS})
+target_link_libraries(mudisd PUBLIC -Wl,--whole-archive milk ${PROJECT_NAME} -Wl,--no-whole-archive ${LIBS_DEPENDS})

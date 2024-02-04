@@ -129,6 +129,20 @@ namespace lyramilk{ namespace mudis { namespace strategy
 				endpoint->dtr(endpoint);
 				pserver->enable(false);
 			}
+			
+			// 如果都失败了就尝试不检查在线状态
+			for(unsigned int i=diligent;i < upstreams.size() + diligent;++i){
+				int idx = diligent % upstreams.size();
+				redis_upstream_server* pserver = upstreams[idx];
+
+				redis_upstream_connector* endpoint = lyramilk::netio::aiosession::__tbuilder<redis_upstream_connector>();
+				if(connect_upstream(is_ssdb,endpoint,pserver,proxy)){
+					return new lazy(pserver,endpoint,is_ssdb);
+				}
+				//尝试链接失败
+				endpoint->dtr(endpoint);
+				pserver->enable(false);
+			}
 			return nullptr;
 		}
 

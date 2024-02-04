@@ -325,7 +325,7 @@ namespace lyramilk{ namespace mudis
 	{
 		lyramilk::data::string key = hash(host,port,password);
 
-		std::map<lyramilk::data::string,redis_upstream_server*>::iterator it = rlist.find(key);
+		//std::map<lyramilk::data::string,redis_upstream_server*>::iterator it = rlist.find(key);
 
 		redis_upstream_server*& s = rlist[key];
 		if(s == nullptr){
