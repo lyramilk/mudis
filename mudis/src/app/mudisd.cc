@@ -1,8 +1,9 @@
 #include <fstream>
-#include "redis_proxy.h"
-#include "strategy.h"
-#include "config.h"
-#include "loadconfig.h"
+#include "mudis/redis_proxy.h"
+#include "mudis/strategy.h"
+#include "mudis/config.h"
+#include "mudis/loadconfig.h"
+#include "mudis/pidfile.h"
 #include <libmilk/var.h>
 #include <libmilk/yaml1.h>
 #include <libmilk/json.h>
@@ -21,7 +22,6 @@
 #include <fcntl.h>
 #include <string.h>
 #include <limits.h>
-#include "pidfile.h"
 
 #include <errno.h>
 #include <stdlib.h>

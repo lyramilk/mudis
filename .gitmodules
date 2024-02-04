@@ -1,0 +1,3 @@
+[submodule "mudis/3rd_party/libmilk"]
+	path = mudis/3rd_party/libmilk
+	url = https://github.com/lyramilk/libmilk.git
